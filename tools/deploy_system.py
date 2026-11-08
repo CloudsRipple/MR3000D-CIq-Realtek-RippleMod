@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-CMCC MR3000D-CIq 工业级离线网络加速与 Plan B 双分区安全刷机工具 (macOS)
+MR3000D-CIq 工业级离线网络加速与 Plan B 双分区安全刷机工具 (macOS)
 位置: mr3000d_commercial_mod_pkg/deploy_and_flash.py
 
 四大核心技术重构:
@@ -83,7 +83,7 @@ class TelnetClient:
             ("user", "user"),
             ("admin", "admin"),
             ("root", "admin"),
-            ("CMCCAdmin", "aDm8H%MdA")
+            ("原厂Admin", "aDm8H%MdA")
         ]
         # 去重
         seen = set()
@@ -737,7 +737,7 @@ def action_plan_b(session):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="CMCC MR3000D-CIq 工业级刷机与网络优化工具")
+    parser = argparse.ArgumentParser(description="MR3000D-CIq 工业级刷机与网络优化工具")
     parser.add_argument("action", choices=['deploy', 'deploy-all', "fix-net", "push-web", "push-plugin", "plan-b", "confirm", "status", "boot-slot1", "switch-slot1", "unlock-telnet"], help="执行动作")
     parser.add_argument("--host", default="192.168.10.1", help="路由器 IP (默认 192.168.10.1)")
     parser.add_argument("--port", type=int, default=2356, help="指定端口 (默认自适应 2356/22/23)")
@@ -752,7 +752,7 @@ def main():
         print("  ❌ [前置拦截] 未检测到 192.168.10.x 局域网物理连接！")
         print("======================================================================")
         print("  当前 Mac 尚未连接到路由器。请按以下步骤操作:")
-        print("  1. 打开 Mac Wi-Fi，搜索并连接路由器的无线网络 (如 CMCC-XXXX)；")
+        print("  1. 打开 Mac Wi-Fi，搜索并连接路由器的无线网络 (如 MR3000D-XXXX)；")
         print("     或者用网线将 Mac 连接到路由器的 LAN 口。")
         print("  2. 连接成功后，Mac 将自动获得 192.168.10.x 网段的 IP。")
         print("  3. 待连上路由器后，再次运行本脚本即可！")

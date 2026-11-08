@@ -39,11 +39,11 @@ mkdir -p "$OPT_DIR"
 if [ -d /opt ] && [ ! -L /opt ]; then
     echo "[*] Migrating existing /opt data..."
     cp -a /opt/* "$OPT_DIR/" 2>/dev/null || true
-    rm -rf /opt
+    rm -rf /opt 2>/dev/null || true
 fi
 
 if [ ! -L /opt ]; then
-    ln -sf "$OPT_DIR" /opt
+    ln -sf "$OPT_DIR" /opt 2>/dev/null || echo "[*] 提示: 固件根目录只读保护，已将运行目录绑定至 $OPT_DIR"
 fi
 
 # 3. Download Installer with Retry and Fallback
@@ -53,12 +53,12 @@ download_ok=0
 echo "[*] Downloading installer script..."
 for url in "$URL_OFFICIAL" "$URL_MIRROR"; do
     if command -v curl >/dev/null 2>&1; then
-        if curl -sSL --connect-timeout 5 -m 30 "$url" -o "$INSTALLER_TMP"; then
+        if curl -k -sSL --connect-timeout 8 -m 30 "$url" -o "$INSTALLER_TMP"; then
             download_ok=1
             break
         fi
     elif command -v wget >/dev/null 2>&1; then
-        if wget -q -T 30 "$url" -O "$INSTALLER_TMP"; then
+        if wget --no-check-certificate -q -T 30 "$url" -O "$INSTALLER_TMP" 2>/dev/null || wget -q -T 30 "$url" -O "$INSTALLER_TMP"; then
             download_ok=1
             break
         fi

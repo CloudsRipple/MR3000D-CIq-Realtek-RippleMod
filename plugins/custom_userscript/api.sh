@@ -36,12 +36,6 @@ case "$cmd" in
             echo '{"status":1,"error":"user_run.sh is empty or not executable"}'
         fi
         ;;
-    get_logs)
-        n="${args:-80}"
-        logs=""
-        [ -f /tmp/ripple_mod.log ] && logs=$(tail -n "$n" /tmp/ripple_mod.log 2>/dev/null)
-        printf '{"status":0,"logs":"%s"}\n' "$(printf '%s' "$logs" | sed 's/\\/\\\\/g;s/"/\\"/g' | awk '{printf "%s\\n", $0}')"
-        ;;
     *)
         echo "{\"status\":1,\"error\":\"Unknown custom_userscript command '$cmd'\"}"
         ;;

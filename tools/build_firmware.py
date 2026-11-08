@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Ripple-mod 固件镜像构建器 (CMCC MR3000D-CIq / RTL8198D)
+Ripple-mod 固件镜像构建器 (MR3000D-CIq / RTL8198D)
 
 输入 (均由使用者自备, 不随仓库分发):
   --rootfs      已解包的原厂 rootfs 目录 (SquashFS 解包结果)

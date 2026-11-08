@@ -1,7 +1,7 @@
 #!/bin/sh
 trap '' HUP
 # ==============================================================================
-# CMCC MR3000D-CIq A/B Dual-Slot & Rollback Guard Engine
+# MR3000D-CIq A/B Dual-Slot & Rollback Guard Engine
 # Location: /var/app/scripts/rollback_guard.sh
 # ==============================================================================
 

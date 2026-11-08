@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-CMCC MR3000D-CIq 一键 Telnet 解锁与 Root 终端激活工具
+MR3000D-CIq 一键 Telnet 解锁与 Root 终端激活工具
 ===================================================
-适用机型: 中国移动 CMCC MR3000D-CIq (Realtek RTL8198D)
+适用机型: MR3000D-CIq (Realtek RTL8198D)
 功能特点:
 1. 物理网卡智能探测: 自动绕过 Clash / Surge TUN 虚拟代理网卡 (198.18.x.x)，直连 192.168.10.x 局域网;
 2. Web API 唤醒: 向 /boaform/admin/formTelnet 发送 enable=1 唤醒原厂 Telnet 守护进程;
 3. 双端口自适应: 兼容原厂 2356 端口与标准 23 端口，多轮重试与就绪探测;
-4. 凭据库自适应爆破: 遍历机身出厂密码与默认密码 (admin:7s75239j, admin:system, admin:admin, CMCCAdmin:aDm8H%MdA 等);
+4. 凭据库自适应爆破: 遍历机身出厂密码与默认密码 (admin:7s75239j, admin:system, admin:admin, 原厂Admin:aDm8H%MdA 等);
 5. Root 密码初始化: 一键写入永久 admin:system 哈希并绑定 /bin/sh;
 6. 唤醒常驻服务: 激活标准 23 端口免密 telnetd 与 22 端口 Dropbear SSH;
 7. 全双工交互终端: 解锁成功后可直接进入交互式 Root Shell。
@@ -119,7 +119,7 @@ class TelnetManager:
             ("admin", "admin"),
             ("root", "admin"),
             ("user", "user"),
-            ("CMCCAdmin", "aDm8H%MdA"),
+            ("原厂Admin", "aDm8H%MdA"),
             ("admin", "password"),
         ]
 
@@ -173,7 +173,7 @@ class TelnetManager:
     def interact(self):
         """进入全双工交互模式"""
         print("\n" + "=" * 65)
-        print("  🎉 已进入 CMCC MR3000D-CIq 交互式终端 (输入 exit 退出)")
+        print("  🎉 已进入 MR3000D-CIq 交互式终端 (输入 exit 退出)")
         print("=" * 65 + "\n")
         self.sock.setblocking(False)
         try:
@@ -201,7 +201,7 @@ class TelnetManager:
 
 def unlock_and_init(host="192.168.10.1", port=None, mac_ip=None, custom_cmd=None, interactive=True):
     print("======================================================================")
-    print("  🔓 CMCC MR3000D-CIq 一键 Telnet 解锁与 Root 终端激活工具")
+    print("  🔓 MR3000D-CIq 一键 Telnet 解锁与 Root 终端激活工具")
     print("======================================================================")
 
     # 1. 物理局域网 IP 嗅探
@@ -289,7 +289,7 @@ def unlock_and_init(host="192.168.10.1", port=None, mac_ip=None, custom_cmd=None
 
 
 def main():
-    parser = argparse.ArgumentParser(description="CMCC MR3000D-CIq 一键 Telnet 解锁与 Root 终端激活工具")
+    parser = argparse.ArgumentParser(description="MR3000D-CIq 一键 Telnet 解锁与 Root 终端激活工具")
     parser.add_argument("--host", default="192.168.10.1", help="路由器 IP (默认 192.168.10.1)")
     parser.add_argument("--port", type=int, default=None, help="指定 Telnet 端口 (默认自动探测 2356 和 23)")
     parser.add_argument("--mac-ip", default=None, help="强制指定 Mac 物理局域网网卡 IP (如 192.168.10.100)")

@@ -5,7 +5,7 @@
 #   check  run every guard, write nothing
 #   flash  run guards, write ubi_k1 + ubi_r1, arm 90s trial boot, reboot
 #
-# Reference layout (CMCC MR3000D-CIq, read from the factory dump):
+# Reference layout (MR3000D-CIq, read from the factory dump):
 #   SPI NAND 128 MiB, page 2048 B, PEB 128 KiB, LEB 126976 B
 #   mtd: boot 768K | env 128K | env2 128K | static_conf 128K | ubi_device 127360K
 #   UBI vols: 0 ubi_Config 87 | 1 ubi_k0 83 | 2 ubi_r0 207 | 3 ubi_k1 83 | 4 ubi_r1 207

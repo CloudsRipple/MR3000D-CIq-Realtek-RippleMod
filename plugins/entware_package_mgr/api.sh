@@ -28,8 +28,9 @@ EOF
 
     bootstrap_entware)
         if [ -f /var/app/core_system/runtime/bootstrap_entware.sh ]; then
-            out=$(sh /var/app/core_system/runtime/bootstrap_entware.sh 2>&1)
-            echo "{\"status\":0,\"message\":\"Entware bootstrap initiated\",\"log\":\"$out\"}"
+            out=$(sh /var/app/core_system/runtime/bootstrap_entware.sh 2>&1 || true)
+            clean_out=$(printf '%s' "$out" | tr -d '\r' | sed 's/\\/\\\\/g; s/"/\\"/g' | awk '{printf "%s\\n", $0}' | tr '\n' ' ')
+            echo "{\"status\":0,\"message\":\"Entware 部署操作已完成\",\"log\":\"$clean_out\"}"
         else
             echo "{\"status\":1,\"error\":\"bootstrap_entware.sh script not found\"}"
         fi
@@ -37,8 +38,9 @@ EOF
 
     install_python)
         if [ -f /var/app/core_system/runtime/install_python.sh ]; then
-            out=$(sh /var/app/core_system/runtime/install_python.sh 2>&1)
-            echo "{\"status\":0,\"message\":\"Python installation completed\",\"log\":\"$out\"}"
+            out=$(sh /var/app/core_system/runtime/install_python.sh 2>&1 || true)
+            clean_out=$(printf '%s' "$out" | tr -d '\r' | sed 's/\\/\\\\/g; s/"/\\"/g' | awk '{printf "%s\\n", $0}' | tr '\n' ' ')
+            echo "{\"status\":0,\"message\":\"Python 3 安装操作已执行\",\"log\":\"$clean_out\"}"
         else
             echo "{\"status\":1,\"error\":\"install_python.sh script not found\"}"
         fi
@@ -50,12 +52,15 @@ EOF
             echo "{\"status\":1,\"error\":\"Package name required\"}"
             exit 1
         fi
-        if [ ! -x /opt/bin/opkg ]; then
+        if [ ! -x /opt/bin/opkg ] && [ ! -x /var/app/opt/bin/opkg ]; then
             echo "{\"status\":1,\"error\":\"Entware opkg not installed\"}"
             exit 1
         fi
-        out=$(/opt/bin/opkg install "$pkg" 2>&1)
-        echo "{\"status\":0,\"package\":\"$pkg\",\"output\":\"$out\"}"
+        OPKG_BIN="/opt/bin/opkg"
+        [ -x /var/app/opt/bin/opkg ] && OPKG_BIN="/var/app/opt/bin/opkg"
+        out=$("$OPKG_BIN" install "$pkg" 2>&1 || true)
+        clean_out=$(printf '%s' "$out" | tr -d '\r' | sed 's/\\/\\\\/g; s/"/\\"/g' | awk '{printf "%s\\n", $0}' | tr '\n' ' ')
+        echo "{\"status\":0,\"package\":\"$pkg\",\"output\":\"$clean_out\"}"
         ;;
 
     list_installed)

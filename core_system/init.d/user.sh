@@ -90,6 +90,19 @@ iptables -t nat -C POSTROUTING -j PLUGIN_NAT 2>/dev/null || iptables -t nat -I P
 iptables -t nat -C PREROUTING -p tcp -d 192.168.10.1 --dport 80 -j REDIRECT --to-ports 8080 2>/dev/null || \
 iptables -t nat -I PREROUTING 1 -p tcp -d 192.168.10.1 --dport 80 -j REDIRECT --to-ports 8080 2>/dev/null || true
 
+# Port Forwarding Chain Integration
+iptables -t nat -N PORT_FORWARD 2>/dev/null || true
+iptables -t nat -C PREROUTING -j PORT_FORWARD 2>/dev/null || iptables -t nat -I PREROUTING 1 -j PORT_FORWARD 2>/dev/null || true
+if [ -f "$CONF_DIR/port_forward.sh" ]; then
+    sh "$CONF_DIR/port_forward.sh" 2>/dev/null || true
+fi
+
+# 6.1 Ensure Console Access (Telnet daemon on port 23 and 2356)
+if ! pidof telnetd >/dev/null 2>&1; then
+    /bin/telnetd -p 23 -l /bin/sh 2>/dev/null || true
+    /bin/telnetd -p 2356 -l /bin/sh 2>/dev/null || true
+fi
+
 # 7. Dnsmasq Drop-in Directory Integration
 for conf in /var/dnsmasq.conf /etc/dnsmasq.conf; do
     if [ -f "$conf" ]; then
@@ -115,7 +128,7 @@ if [ -x "$BIN_DIR/dropbear" ]; then
 
     if ! pidof dropbear >/dev/null 2>&1; then
         echo "[Init] Starting Dropbear SSH service on port 22..."
-        "$BIN_DIR/dropbear" -p 22 -r "$KEY_RSA" -P "$STATE_DIR/dropbear.pid" 2>/dev/null || true
+        "$BIN_DIR/dropbear" -p 22 -R -P "$STATE_DIR/dropbear.pid" 2>/dev/null || true
     fi
 fi
 

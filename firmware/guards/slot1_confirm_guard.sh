@@ -1,7 +1,7 @@
 #!/bin/sh
 trap '' HUP
 # ==============================================================================
-# CMCC MR3000D-CIq Mode B Slot 1 Guard Engine
+# MR3000D-CIq Mode B Slot 1 Guard Engine
 # Location: /var/app/scripts/slot1_confirm_guard.sh
 # ==============================================================================
 

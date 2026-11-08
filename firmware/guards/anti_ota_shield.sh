@@ -1,6 +1,6 @@
 #!/bin/sh
 # ==============================================================================
-# CMCC MR3000D-CIq Anti-OTA & Spyware Shield
+# MR3000D-CIq Anti-OTA & Spyware Shield
 # Location: /var/app/scripts/anti_ota_shield.sh
 # ==============================================================================
 

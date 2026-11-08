@@ -3,15 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ripple-mod 控制台</title>
+  <title>Ripple-mod - 控制台</title>
   <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌊</text></svg>">
 </head>
 <body>
   <div class="container">
-    <!-- Header -->
+    <!-- Header with System Indicator -->
     <header class="app-header">
-      <div class="brand-title">
-        <div class="brand-logo">
+      <div class="app-brand">
+        <div class="brand-icon">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M2 12c3-4 6-4 9 0s6 4 9 0"></path>
             <path d="M2 7c3-4 6-4 9 0s6 4 9 0"></path>
@@ -30,10 +31,12 @@
     <!-- Navigation Tabs -->
     <nav class="nav-tabs">
       <button class="nav-tab active" data-target="tab-overview">系统概览</button>
-      <button class="nav-tab" data-target="tab-runtime">运行环境与 Python</button>
+      <button class="nav-tab" data-target="tab-network">网络设置</button>
+      <button class="nav-tab" data-target="tab-wifi">无线 Wi-Fi</button>
+      <button class="nav-tab" data-target="tab-clients">终端管理</button>
       <button class="nav-tab" data-target="tab-plugins">插件中心</button>
       <button class="nav-tab" data-target="tab-adblock">DNS 与去广告</button>
-      <button class="nav-tab" data-target="tab-userscript">自定义脚本</button>
+      <button class="nav-tab" data-target="tab-system">系统管理</button>
       <button class="nav-tab" data-target="tab-logs">实时日志</button>
     </nav>
 
@@ -98,15 +101,15 @@
               <span class="wifi-badge-ax">Wi-Fi 6</span>
               <span style="font-weight: 600; font-size: 15px;">5 GHz 无线 (wlan1)</span>
             </div>
-            <span class="status-badge online" style="font-size: 11px; padding: 2px 8px;">开启</span>
+            <a href="javascript:void(0)" onclick="switchTab('tab-wifi')" style="font-size: 12px; color: var(--primary); text-decoration: none;">详细设置 &rarr;</a>
           </div>
           <div class="metric-row">
             <span class="metric-label">SSID</span>
-            <span class="metric-val" id="wifi5-ssid" style="font-weight: 600;">CMCC-2C3G-5G</span>
+            <span class="metric-val" id="wifi5-ssid" style="font-weight: 600;">MR3000D-5G</span>
           </div>
           <div class="metric-row">
             <span class="metric-label">信道 / 频宽</span>
-            <span class="metric-val" id="wifi5-ch">36 / 160 MHz</span>
+            <span class="metric-val" id="wifi5-ch">36 (160 MHz)</span>
           </div>
           <div class="metric-row">
             <span class="metric-label">协议模式</span>
@@ -120,19 +123,19 @@
               <span class="wifi-badge-n">Wi-Fi 4</span>
               <span style="font-weight: 600; font-size: 15px;">2.4 GHz 无线 (wlan0)</span>
             </div>
-            <span class="status-badge online" style="font-size: 11px; padding: 2px 8px;">开启</span>
+            <a href="javascript:void(0)" onclick="switchTab('tab-wifi')" style="font-size: 12px; color: var(--primary); text-decoration: none;">详细设置 &rarr;</a>
           </div>
           <div class="metric-row">
             <span class="metric-label">SSID</span>
-            <span class="metric-val" id="wifi2-ssid" style="font-weight: 600;">CMCC-2C3G</span>
+            <span class="metric-val" id="wifi2-ssid" style="font-weight: 600;">MR3000D-2.4G</span>
           </div>
           <div class="metric-row">
             <span class="metric-label">信道 / 频宽</span>
-            <span class="metric-val" id="wifi2-ch">6 / 40 MHz</span>
+            <span class="metric-val" id="wifi2-ch">6 (40 MHz)</span>
           </div>
           <div class="metric-row">
             <span class="metric-label">协议模式</span>
-            <span class="metric-val" style="color: #0284c7; font-weight: 500;">802.11n (574 Mbps)</span>
+            <span class="metric-val" style="color: #0284c7; font-weight: 500;">802.11b/g/n (574 Mbps)</span>
           </div>
         </div>
       </div>
@@ -143,11 +146,11 @@
           <div class="card-title">系统信息</div>
           <div class="metric-row">
             <span class="metric-label">设备型号</span>
-            <span class="metric-val">MR3000D-CIq (MIPS)</span>
+            <span class="metric-val">MR3000D-CIq</span>
           </div>
           <div class="metric-row">
             <span class="metric-label">内核版本</span>
-            <span class="metric-val" id="sys-kernel">5.10.70</span>
+            <span class="metric-val" id="sys-kernel">Linux 5.10.70</span>
           </div>
           <div class="metric-row">
             <span class="metric-label">运行时间</span>
@@ -159,7 +162,7 @@
           </div>
           <div class="metric-row">
             <span class="metric-label">在线终端</span>
-            <span class="metric-val" id="sys-lan-clients" style="font-weight: 600; color: var(--primary);">-- 台</span>
+            <span class="metric-val" id="sys-lan-clients" style="font-weight: 600; color: var(--primary); cursor: pointer;" onclick="switchTab('tab-clients')">-- 台 (点击查看)</span>
           </div>
         </div>
 
@@ -189,51 +192,493 @@
       </div>
     </section>
 
-    <!-- Tab 2: Runtime Environment & Python -->
-    <section id="tab-runtime" class="tab-content">
+    <!-- Tab 2: Network Settings (WAN / LAN / DHCP / Bridge / Port Forwarding / DMZ) -->
+    <section id="tab-network" class="tab-content">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <div>
+          <h3 style="font-size: 16px; font-weight: 600;">核心网络与接口配置</h3>
+          <p style="font-size: 13px; color: var(--text-muted);">管理工作模式 (网关/桥接)、局域网 LAN & DHCP 地址池、WAN 上行接入及端口转发</p>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="loadNetworkSettings()">刷新网络参数</button>
+      </div>
+
+      <!-- 1. Operation Mode Switching (路由网关 vs AP 桥接) -->
       <div class="card" style="margin-bottom: 20px;">
-        <div class="card-title">嵌入式运行库与软件仓库 (Entware & OPKG)</div>
+        <div class="card-title">
+          <span>工作模式选择</span>
+          <span id="current-opmode-badge" class="brand-badge">网关路由模式 (NAT)</span>
+        </div>
         <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
-          通过补齐 Entware 标准运行时，无需重刷整包固件即可直接在路由器上获取超过 2,500 个原生编译的 MIPS 软件包。
+          选择路由器的核心网络拓扑角色。切换工作模式将自动调整 WAN/LAN 接口绑定与网络地址转换行为。
         </p>
-        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-          <button class="btn btn-primary" onclick="installEntware(this)">
-            一键部署 Entware (OPKG)
-          </button>
-          <button class="btn btn-secondary" onclick="installPython(this)">
-            一键安装 Python 3 Runtime (Lightweight)
-          </button>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 16px;">
+          <div class="opmode-card active" id="opmode-card-0" onclick="selectOpMode(0)" style="border: 2px solid var(--primary); border-radius: 10px; padding: 16px; cursor: pointer; background: #f8fafc; transition: all 0.2s;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+              <span style="font-weight: 600; font-size: 15px;">网关路由模式 (Gateway / NAT)</span>
+              <input type="radio" name="opmode_radio" value="0" id="opmode-radio-0" checked>
+            </div>
+            <p style="font-size: 12px; color: var(--text-muted); line-height: 1.5;">
+              标准家庭与企业路由架构。路由器独立作为局域网网关，WAN 接口直连上级光猫或宽带，开启 DHCP 地址分配与硬件 NAT 加速。
+            </p>
+          </div>
+
+          <div class="opmode-card" id="opmode-card-1" onclick="selectOpMode(1)" style="border: 1px solid var(--border); border-radius: 10px; padding: 16px; cursor: pointer; background: #ffffff; transition: all 0.2s;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+              <span style="font-weight: 600; font-size: 15px;">AP 桥接模式 (Bridge / AP)</span>
+              <input type="radio" name="opmode_radio" value="1" id="opmode-radio-1">
+            </div>
+            <p style="font-size: 12px; color: var(--text-muted); line-height: 1.5;">
+              有线 AP 扩展模式。WAN 网口直接桥接至内网局域网 (br0)，旁路 NAT 转换，终端直接由上级主路由统一分配 IP 地址。
+            </p>
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end;">
+          <button class="btn btn-primary" onclick="applyOpMode(this)">保存工作模式</button>
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-title">常用工具快速安装</div>
+      <!-- 2. LAN & DHCP Settings -->
+      <div class="card" style="margin-bottom: 20px;">
+        <div class="card-title">局域网与 DHCP 服务 (LAN)</div>
         <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
-          点击即可由后台自动调用 <code>opkg install</code> 进行安装扩展：
+          配置路由器内网网关 IP 地址、子网掩码以及内置 DHCP 服务器的地址池分配范围与租约。
         </p>
-        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-          <button class="btn btn-secondary btn-sm" onclick="installPkg(this, 'nano')">文本编辑 (nano)</button>
-          <button class="btn btn-secondary btn-sm" onclick="installPkg(this, 'htop')">性能监控 (htop)</button>
-          <button class="btn btn-secondary btn-sm" onclick="installPkg(this, 'iperf3')">测速压测 (iperf3)</button>
-          <button class="btn btn-secondary btn-sm" onclick="installPkg(this, 'tcpdump')">抓包诊断 (tcpdump)</button>
-          <button class="btn btn-secondary btn-sm" onclick="installPkg(this, 'bash')">完整 Bash Shell</button>
+
+        <form onsubmit="saveLanConfig(event)">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 16px;">
+            <div>
+              <label class="form-label">内网 IP 地址 (LAN IP)</label>
+              <input type="text" id="lan-ip" class="form-input" required value="192.168.10.1">
+            </div>
+            <div>
+              <label class="form-label">子网掩码 (Subnet Mask)</label>
+              <input type="text" id="lan-netmask" class="form-input" required value="255.255.255.0">
+            </div>
+            <div>
+              <label class="form-label">DHCP 服务状态</label>
+              <select id="lan-dhcp-enabled" class="form-select" onchange="toggleDhcpInputs(this.value)">
+                <option value="1">开启 (自动为终端分配 IP)</option>
+                <option value="0">关闭 (停用 DHCP 服务)</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">地址池起始 IP</label>
+              <input type="text" id="lan-dhcp-start" class="form-input" value="192.168.10.2">
+            </div>
+            <div>
+              <label class="form-label">地址池结束 IP</label>
+              <input type="text" id="lan-dhcp-end" class="form-input" value="192.168.10.254">
+            </div>
+            <div>
+              <label class="form-label">租约时间 (秒)</label>
+              <input type="number" id="lan-dhcp-lease" class="form-input" value="86400" min="60" max="604800">
+            </div>
+            <div>
+              <label class="form-label">自定义首选 DNS (可选)</label>
+              <input type="text" id="lan-dns1" class="form-input" placeholder="留空则使用路由器自身">
+            </div>
+            <div>
+              <label class="form-label">自定义备选 DNS (可选)</label>
+              <input type="text" id="lan-dns2" class="form-input" placeholder="留空则不指定备选">
+            </div>
+          </div>
+          <div style="display: flex; justify-content: flex-end;">
+            <button type="submit" class="btn btn-primary">保存局域网与 DHCP 设置</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- 3. WAN Setup -->
+      <div class="card" style="margin-bottom: 20px;">
+        <div class="card-title">
+          <span>WAN 互联网接入设置</span>
+          <span id="wan-current-ip-badge" class="brand-badge">检测中...</span>
+        </div>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
+          设置上行广域网 (WAN) 接口的联网模式。支持自动获取 IP (DHCP)、固定静态 IP 以及 PPPoE 宽带拨号。
+        </p>
+
+        <form onsubmit="saveWanConfig(event)">
+          <div style="margin-bottom: 16px;">
+            <label class="form-label">上网接入协议</label>
+            <select id="wan-proto-select" class="form-select" onchange="onWanProtoChange(this.value)" style="max-width: 320px;">
+              <option value="dhcp">DHCP (自动获取 IP / 动态 IP)</option>
+              <option value="static">Static IP (固定静态 IP)</option>
+              <option value="pppoe">PPPoE (宽带账号拨号)</option>
+            </select>
+          </div>
+
+          <!-- Static IP Fields -->
+          <div id="wan-static-fields" style="display: none; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 16px;">
+            <div>
+              <label class="form-label">WAN IP 地址</label>
+              <input type="text" id="wan-static-ip" class="form-input" placeholder="如 192.168.1.100">
+            </div>
+            <div>
+              <label class="form-label">子网掩码</label>
+              <input type="text" id="wan-static-mask" class="form-input" value="255.255.255.0">
+            </div>
+            <div>
+              <label class="form-label">默认网关</label>
+              <input type="text" id="wan-static-gw" class="form-input" placeholder="如 192.168.1.1">
+            </div>
+            <div>
+              <label class="form-label">首选 DNS</label>
+              <input type="text" id="wan-static-dns1" class="form-input" placeholder="如 223.5.5.5">
+            </div>
+          </div>
+
+          <!-- PPPoE Fields -->
+          <div id="wan-pppoe-fields" style="display: none; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 16px;">
+            <div>
+              <label class="form-label">宽带拨号账号</label>
+              <input type="text" id="wan-pppoe-user" class="form-input" placeholder="宽带账号">
+            </div>
+            <div>
+              <label class="form-label">宽带拨号密码</label>
+              <input type="password" id="wan-pppoe-pass" class="form-input" placeholder="宽带密码">
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 16px;">
+            <div>
+              <label class="form-label">MTU 大小 (字节)</label>
+              <input type="number" id="wan-mtu" class="form-input" value="1500" min="576" max="1500">
+            </div>
+            <div>
+              <label class="form-label">自定义 MAC 地址 (克隆 MAC)</label>
+              <input type="text" id="wan-mac" class="form-input" placeholder="留空使用硬件原厂 MAC">
+            </div>
+          </div>
+
+          <div style="display: flex; justify-content: flex-end;">
+            <button type="submit" class="btn btn-primary">应用 WAN 上网设置</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- 4. Port Forwarding & DMZ -->
+      <div class="card" style="margin-bottom: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+          <div>
+            <div class="card-title" style="margin-bottom: 4px;">端口转发与虚拟服务器 (Port Forwarding)</div>
+            <p style="font-size: 13px; color: var(--text-muted);">
+              将外部 WAN 端口请求映射转发到内网特定设备的指定服务端口（支持 Web 服务、NAS、游戏联机等）。
+            </p>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="toggleAddPortFwDrawer()">+ 添加映射规则</button>
+        </div>
+
+        <!-- Add Rule Drawer -->
+        <div id="drawer-add-portfw" style="display: none; background: #f8fafc; border: 1px dashed var(--border); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+          <form onsubmit="addPortFwRule(event)">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 12px;">
+              <div>
+                <label class="form-label">规则名称</label>
+                <input type="text" id="pf-name" class="form-input" required placeholder="如 WebServer">
+              </div>
+              <div>
+                <label class="form-label">协议类型</label>
+                <select id="pf-proto" class="form-select">
+                  <option value="tcp">TCP</option>
+                  <option value="udp">UDP</option>
+                  <option value="both">TCP + UDP</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label">外部端口</label>
+                <input type="number" id="pf-ext-port" class="form-input" required placeholder="如 8088" min="1" max="65535">
+              </div>
+              <div>
+                <label class="form-label">内部主机 IP</label>
+                <input type="text" id="pf-int-ip" class="form-input" required placeholder="如 192.168.10.100">
+              </div>
+              <div>
+                <label class="form-label">内部端口</label>
+                <input type="number" id="pf-int-port" class="form-input" required placeholder="如 80" min="1" max="65535">
+              </div>
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 8px;">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="toggleAddPortFwDrawer()">取消</button>
+              <button type="submit" class="btn btn-primary btn-sm">保存规则</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Rules Table -->
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+            <thead>
+              <tr style="border-bottom: 2px solid var(--border); text-align: left;">
+                <th style="padding: 10px 8px;">服务名称</th>
+                <th style="padding: 10px 8px;">协议</th>
+                <th style="padding: 10px 8px;">外部端口</th>
+                <th style="padding: 10px 8px;">内部 IP</th>
+                <th style="padding: 10px 8px;">内部端口</th>
+                <th style="padding: 10px 8px;">状态</th>
+                <th style="padding: 10px 8px; text-align: right;">操作</th>
+              </tr>
+            </thead>
+            <tbody id="portfw-rules-body">
+              <tr>
+                <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 20px;">暂无端口转发规则</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- DMZ & UPnP -->
+        <hr style="border: none; border-top: 1px solid var(--border); margin: 20px 0;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;">
+          <div>
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+              <span style="font-weight: 600; font-size: 14px;">DMZ 隔离区主机</span>
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                <input type="checkbox" id="dmz-enabled-toggle" onchange="toggleDmzInput(this.checked)">
+                <span style="font-size: 13px;">启用</span>
+              </label>
+            </div>
+            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">
+              将所有未被端口转发占用的外部请求无条件映射给指定内部主机。
+            </p>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" id="dmz-ip-input" class="form-input" placeholder="DMZ 主机 IP (如 192.168.10.88)" disabled>
+              <button class="btn btn-secondary btn-sm" onclick="saveDmzConfig(this)">保存 DMZ</button>
+            </div>
+          </div>
+
+          <div>
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+              <span style="font-weight: 600; font-size: 14px;">UPnP 自动端口映射</span>
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                <input type="checkbox" id="upnp-enabled-toggle" onchange="saveUpnpConfig(this)">
+                <span style="font-size: 13px;">开启 UPnP</span>
+              </label>
+            </div>
+            <p style="font-size: 12px; color: var(--text-muted);">
+              允许局域网应用（如 P2P 下载、视频会议、游戏主机）自动申请端口映射并穿透 NAT。
+            </p>
+          </div>
         </div>
       </div>
     </section>
 
-    <!-- Tab 3: Plugin Ecosystem Center -->
-    <section id="tab-plugins" class="tab-content">
+    <!-- Tab 2: Wi-Fi Wireless Settings -->
+    <section id="tab-wifi" class="tab-content">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-        <h3 style="font-size: 16px; font-weight: 600;">已挂载应用插件</h3>
-        <button class="btn btn-secondary btn-sm" onclick="refreshPlugins()">刷新列表</button>
+        <div>
+          <h3 style="font-size: 16px; font-weight: 600;">无线 Wi-Fi 设置与调优</h3>
+          <p style="font-size: 13px; color: var(--text-muted);">配置 2.4G 与 5G Wi-Fi 6 频段的 SSID 名称、加密密码、信道与频宽</p>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="loadWifiSettings()">刷新参数</button>
       </div>
+
+      <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;">
+        <!-- 2.4G Settings Card -->
+        <div class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="wifi-badge-n">Wi-Fi 4</span>
+              <span style="font-weight: 600; font-size: 15px;">2.4 GHz 无线频段</span>
+            </div>
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer;">
+              <input type="checkbox" id="wifi-enable-2g" checked> 开启射频
+            </label>
+          </div>
+
+          <form onsubmit="saveWifiSettings(event, '2g')">
+            <div style="margin-bottom: 14px;">
+              <label class="form-label">无线网络名称 (SSID)</label>
+              <input type="text" id="wifi-ssid-2g" class="form-input" required placeholder="MR3000D-2.4G">
+            </div>
+
+            <div style="margin-bottom: 14px;">
+              <label class="form-label">无线加密密码 (WPA2-PSK)</label>
+              <div style="display: flex; gap: 8px;">
+                <input type="password" id="wifi-pass-2g" class="form-input" placeholder="至少8位字符" minlength="8">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="togglePassVisibility('wifi-pass-2g')">显示</button>
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+              <div>
+                <label class="form-label">工作信道</label>
+                <select id="wifi-ch-2g" class="form-input">
+                  <option value="0">自动选择 (Auto)</option>
+                  <option value="1">信道 1 (2412 MHz)</option>
+                  <option value="6">信道 6 (2437 MHz)</option>
+                  <option value="11">信道 11 (2462 MHz)</option>
+                  <option value="2">信道 2</option>
+                  <option value="3">信道 3</option>
+                  <option value="4">信道 4</option>
+                  <option value="5">信道 5</option>
+                  <option value="7">信道 7</option>
+                  <option value="8">信道 8</option>
+                  <option value="9">信道 9</option>
+                  <option value="10">信道 10</option>
+                  <option value="12">信道 12</option>
+                  <option value="13">信道 13</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label">频宽模式</label>
+                <select id="wifi-bw-2g" class="form-input">
+                  <option value="0">20 MHz</option>
+                  <option value="1">20 / 40 MHz 自动</option>
+                </select>
+              </div>
+            </div>
+
+            <div style="margin-bottom: 16px;">
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
+                <input type="checkbox" id="wifi-hide-2g"> 隐藏网络 (不广播此 SSID)
+              </label>
+            </div>
+
+            <button type="submit" class="btn btn-primary" id="btn-save-w2">保存 2.4G 配置</button>
+          </form>
+        </div>
+
+        <!-- 5G Settings Card -->
+        <div class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="wifi-badge-ax">Wi-Fi 6</span>
+              <span style="font-weight: 600; font-size: 15px;">5 GHz 高速频段 (HE160)</span>
+            </div>
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer;">
+              <input type="checkbox" id="wifi-enable-5g" checked> 开启射频
+            </label>
+          </div>
+
+          <form onsubmit="saveWifiSettings(event, '5g')">
+            <div style="margin-bottom: 14px;">
+              <label class="form-label">无线网络名称 (SSID)</label>
+              <input type="text" id="wifi-ssid-5g" class="form-input" required placeholder="MR3000D-5G">
+            </div>
+
+            <div style="margin-bottom: 14px;">
+              <label class="form-label">无线加密密码 (WPA2/WPA3)</label>
+              <div style="display: flex; gap: 8px;">
+                <input type="password" id="wifi-pass-5g" class="form-input" placeholder="至少8位字符" minlength="8">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="togglePassVisibility('wifi-pass-5g')">显示</button>
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+              <div>
+                <label class="form-label">工作信道</label>
+                <select id="wifi-ch-5g" class="form-input">
+                  <option value="0">自动选择 (Auto)</option>
+                  <option value="36">信道 36 (5180 MHz)</option>
+                  <option value="40">信道 40 (5200 MHz)</option>
+                  <option value="44">信道 44 (5220 MHz)</option>
+                  <option value="48">信道 48 (5240 MHz)</option>
+                  <option value="149">信道 149 (5745 MHz)</option>
+                  <option value="153">信道 153 (5765 MHz)</option>
+                  <option value="157">信道 157 (5785 MHz)</option>
+                  <option value="161">信道 161 (5805 MHz)</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label">频宽模式</label>
+                <select id="wifi-bw-5g" class="form-input">
+                  <option value="3">160 MHz (超宽频 2402 Mbps)</option>
+                  <option value="2">80 MHz (主流兼容 1201 Mbps)</option>
+                  <option value="1">40 MHz</option>
+                  <option value="0">20 MHz</option>
+                </select>
+              </div>
+            </div>
+
+            <div style="margin-bottom: 16px;">
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
+                <input type="checkbox" id="wifi-hide-5g"> 隐藏网络 (不广播此 SSID)
+              </label>
+            </div>
+
+            <button type="submit" class="btn btn-primary" id="btn-save-w5">保存 5G 配置</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 3: Connected Clients -->
+    <section id="tab-clients" class="tab-content">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <div>
+          <h3 style="font-size: 16px; font-weight: 600;">局域网在线终端设备</h3>
+          <p style="font-size: 13px; color: var(--text-muted);">实时显示连接到此路由器的手机、电脑与智能设备</p>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="loadClientList()">刷新列表</button>
+      </div>
+
+      <div class="card" style="padding: 0; overflow-x: auto;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>IP 地址</th>
+              <th>MAC 硬件地址</th>
+              <th>设备标识 / 主机名</th>
+              <th>接口类型</th>
+              <th>状态</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="clients-table-body">
+            <tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 20px;">正在加载在线终端列表...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Tab 4: Plugin Ecosystem Center -->
+    <section id="tab-plugins" class="tab-content">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
+        <div>
+          <h3 style="font-size: 16px; font-weight: 600;">已挂载应用插件</h3>
+          <p style="font-size: 13px; color: var(--text-muted);">模块化扩展架构，支持即装即用、独立运行与开机自启</p>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-primary btn-sm" onclick="togglePluginInstallDrawer()">+ 安装新插件</button>
+          <button class="btn btn-secondary btn-sm" onclick="refreshPlugins()">刷新列表</button>
+        </div>
+      </div>
+
+      <!-- Plugin Installation Panel (Expandable) -->
+      <div id="plugin-install-drawer" class="card" style="display: none; margin-bottom: 20px; border-color: var(--primary);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+          <h4 style="font-size: 15px; font-weight: 600;">📦 安装或导入新插件</h4>
+          <button class="btn btn-secondary btn-sm" onclick="togglePluginInstallDrawer()">关闭</button>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;">
+          <!-- Option A: File Upload -->
+          <div style="background: #f8fafc; padding: 14px; border-radius: 8px; border: 1px dashed var(--border);">
+            <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px;">📁 本地离线安装包</div>
+            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">选择打包好的标准插件压缩包 (.tar.gz 或 .tgz)：</p>
+            <input type="file" id="plugin-upload-file" accept=".tar.gz,.tgz" style="font-size: 13px; margin-bottom: 10px; width: 100%;">
+            <button class="btn btn-primary btn-sm" onclick="uploadPluginFile(this)" style="width: 100%;">上传并执行安装</button>
+          </div>
+
+          <!-- Option B: URL Download -->
+          <div style="background: #f8fafc; padding: 14px; border-radius: 8px; border: 1px dashed var(--border);">
+            <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px;">🌐 网络 URL 一键安装</div>
+            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">输入插件包直链地址由路由器后台直接下载：</p>
+            <input type="url" id="plugin-url-input" class="form-input" placeholder="http://.../my_plugin.tar.gz" style="font-size: 13px; margin-bottom: 10px;">
+            <button class="btn btn-secondary btn-sm" onclick="installPluginFromUrl(this)" style="width: 100%;">远程拉取并安装</button>
+          </div>
+        </div>
+      </div>
+
       <div id="plugin-list-container">
         <!-- Dynamically rendered by app.js -->
       </div>
     </section>
 
-
-    <!-- Tab 5: AdBlock DNS -->
+    <!-- Tab 6: AdBlock DNS -->
     <section id="tab-adblock" class="tab-content">
       <div class="card">
         <div class="card-title">DNS 自定义与去广告规则</div>
@@ -248,22 +693,116 @@
       </div>
     </section>
 
-    <!-- Tab 6: Custom UserScript -->
-    <section id="tab-userscript" class="tab-content">
-      <div class="card">
-        <div class="card-title">开机自启 Shell 脚本</div>
-        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
-          自定义命令将在开机和网络就绪后由系统自动在后台执行：
+    <!-- Tab 7: System Management (Password / Maintenance / Crontabs / Diagnostics / Runtime) -->
+    <section id="tab-system" class="tab-content">
+      <!-- 1. Administrator Security -->
+      <div class="card" style="margin-bottom: 20px;">
+        <div class="card-title">管理员密码修改 (Admin Security)</div>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
+          设置当前路由器的管理员 (admin / root) 访问密码，同时同步生效于 Web 控制台、SSH 终端及 Telnet 命令行。
         </p>
-        <textarea id="userscript-editor" class="code-editor" rows="12" placeholder="#!/bin/sh&#10;# 在此编写您的自定义 Shell 命令&#10;echo 'Hello Ripple-mod' > /tmp/hello.txt"></textarea>
-        <div style="margin-top: 12px; display: flex; gap: 10px;">
-          <button class="btn btn-primary" onclick="saveUserScript(this)">保存脚本</button>
-          <button class="btn btn-secondary" onclick="runUserScriptNow(this)">立即试运行</button>
+        <form onsubmit="saveAdminPassword(event)">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 16px;">
+            <div>
+              <label class="form-label">管理员账户</label>
+              <input type="text" class="form-input" value="admin" disabled style="background: #f1f5f9;">
+            </div>
+            <div>
+              <label class="form-label">新密码</label>
+              <input type="password" id="sys-admin-pass1" class="form-input" required placeholder="请输入新密码 (不少于5位)">
+            </div>
+            <div>
+              <label class="form-label">确认新密码</label>
+              <input type="password" id="sys-admin-pass2" class="form-input" required placeholder="请再次输入新密码">
+            </div>
+          </div>
+          <div style="display: flex; justify-content: flex-end;">
+            <button type="submit" class="btn btn-primary">更新登录密码</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- 2. System Maintenance & HWNAT Hardware Acceleration -->
+      <div class="card" style="margin-bottom: 20px;">
+        <div class="card-title">系统维护与硬件加速</div>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
+          执行内存深度垃圾回收与缓存释放、硬件 NAT 加速直通流表切换或设备软重启。
+        </p>
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+          <button class="btn btn-secondary" onclick="systemDropCaches(this)">
+            释放内存缓存
+          </button>
+          <button class="btn btn-secondary" id="btn-toggle-hwnat" onclick="toggleHwnat(this)">
+            硬件加速直通: ON
+          </button>
+          <button class="btn btn-danger" onclick="confirmReboot()">
+            重启路由器
+          </button>
+        </div>
+      </div>
+
+      <!-- 3. Cron Scheduled Tasks -->
+      <div class="card" style="margin-bottom: 20px;">
+        <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
+          <span>自动化与定时任务 (Cron)</span>
+          <button class="btn btn-secondary btn-sm" onclick="loadCronTasks()">重新加载</button>
+        </div>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+          配置系统周期性自动化定时任务（格式：<code>分 时 日 月 周 命令</code>）：
+        </p>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
+          <button class="btn btn-secondary btn-sm" onclick="addCronPreset('reboot')">+ 每天凌晨 4 点重启</button>
+          <button class="btn btn-secondary btn-sm" onclick="addCronPreset('drop_caches')">+ 每小时自动释放内存</button>
+        </div>
+        <textarea id="crontab-editor" class="code-editor" rows="5" placeholder="# 示例: 每天凌晨 04:00 重启路由器&#10;0 4 * * * /sbin/reboot&#10;# 示例: 每小时 30 分释放内存缓存&#10;30 * * * * sync && echo 3 > /proc/sys/vm/drop_caches"></textarea>
+        <div style="margin-top: 12px; display: flex; justify-content: flex-end;">
+          <button class="btn btn-primary" onclick="saveCronTasks(this)">保存计划任务</button>
+        </div>
+      </div>
+
+      <!-- 4. Network Diagnostics (Ping Tool) -->
+      <div class="card" style="margin-bottom: 20px;">
+        <div class="card-title">网络连通性诊断 (Ping Tool)</div>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 14px;">
+          由路由器直接出站发起 ICMP Ping 探测，测试网关、DNS 或外部互联网的丢包与时延：
+        </p>
+        <div style="display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap;">
+          <input type="text" id="ping-target-input" class="form-input" style="max-width: 280px;" value="223.5.5.5" placeholder="IP 或域名，如 114.114.114.114">
+          <button class="btn btn-primary" onclick="runPingTest(this)">执行 Ping 测试</button>
+          <button class="btn btn-secondary" onclick="document.getElementById('ping-target-input').value='223.5.5.5';runPingTest(this)">测试阿里 DNS</button>
+          <button class="btn btn-secondary" onclick="document.getElementById('ping-target-input').value='baidu.com';runPingTest(this)">测试百度</button>
+        </div>
+        <pre id="ping-output-viewer" class="log-viewer" style="min-height: 80px; max-height: 160px;">点击上方按钮开始探测网络延迟...</pre>
+      </div>
+
+      <!-- 5. Entware & OPKG Package Management -->
+      <div class="card" style="margin-bottom: 20px;">
+        <div class="card-title">嵌入式运行库与软件仓库 (Entware & OPKG)</div>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
+          通过补齐 Entware 标准运行时，无需重刷整包固件即可直接在路由器上获取原生编译的 MIPS 软件包。
+        </p>
+        <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px;">
+          <button class="btn btn-primary" onclick="installEntware(this)">
+            一键部署 Entware (OPKG)
+          </button>
+          <button class="btn btn-secondary" onclick="installPython(this)">
+            一键安装 Python 3 Runtime (Lightweight)
+          </button>
+        </div>
+        <div>
+          <span style="font-size: 12px; font-weight: 600; color: var(--text-muted);">常用开发与网络分析工具：</span>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px;">
+            <button class="btn btn-secondary btn-sm" onclick="installPkg(this, 'nano')">文本编辑 (nano)</button>
+            <button class="btn btn-secondary btn-sm" onclick="installPkg(this, 'htop')">性能监控 (htop)</button>
+            <button class="btn btn-secondary btn-sm" onclick="installPkg(this, 'iperf3')">测速压测 (iperf3)</button>
+            <button class="btn btn-secondary btn-sm" onclick="installPkg(this, 'tcpdump')">抓包诊断 (tcpdump)</button>
+            <button class="btn btn-secondary btn-sm" onclick="installPkg(this, 'bash')">完整 Bash Shell</button>
+          </div>
         </div>
       </div>
     </section>
 
-    <!-- Tab 7: Real-time Logs -->
+    <!-- Tab 9: Real-time Logs -->
     <section id="tab-logs" class="tab-content">
       <div class="card">
         <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
@@ -276,6 +815,21 @@
         <pre id="live-log-viewer" class="log-viewer">加载日志中...</pre>
       </div>
     </section>
+
+    <!-- Reboot Confirmation Modal -->
+    <div id="modal-reboot" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
+      <div class="card" style="max-width: 400px; width: 90%; text-align: center; padding: 28px 24px;">
+        <div style="font-size: 40px; margin-bottom: 12px;">🔄</div>
+        <h3 style="font-size: 18px; margin-bottom: 10px;">确认重启路由器？</h3>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 20px;">
+          重启过程大约需要 50~60 秒，期间网络连接将短暂中断。
+        </p>
+        <div style="display: flex; gap: 12px; justify-content: center;">
+          <button class="btn btn-secondary" onclick="closeRebootModal()">取消</button>
+          <button class="btn btn-danger" id="btn-confirm-reboot" onclick="executeReboot()">确认重启</button>
+        </div>
+      </div>
+    </div>
 
     <!-- Toast Notification Container -->
     <div id="toast-container"></div>

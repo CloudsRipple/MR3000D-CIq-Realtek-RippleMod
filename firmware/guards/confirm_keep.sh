@@ -1,6 +1,6 @@
 #!/bin/sh
 # ==============================================================================
-# CMCC MR3000D-CIq User Confirmation CLI Utility
+# MR3000D-CIq User Confirmation CLI Utility
 # Location: /var/app/scripts/confirm_keep.sh
 # Purpose: Manually confirm modifications, remove .unconfirmed, commit slot, and sync.
 # ==============================================================================
@@ -11,7 +11,7 @@ CONFIRMED_FLAG="/tmp/mod_confirmed"
 CONF_DIR="/var/app/conf"
 
 echo "=========================================================="
-echo "    🚀 CMCC MR3000D-CIq Mod Permanent Confirmation"
+echo "    🚀 MR3000D-CIq Mod Permanent Confirmation"
 echo "=========================================================="
 
 # Fix 1: Remove persistent unconfirmed flag and touch runtime confirmed flag

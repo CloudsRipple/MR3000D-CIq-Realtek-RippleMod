@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Binary Patcher for CMCC MR3000D-CIq `rtk_wifi6.ko` (Unsigned MIPS32 R2 Big-Endian ELF)
+Binary Patcher for MR3000D-CIq `rtk_wifi6.ko` (Unsigned MIPS32 R2 Big-Endian ELF)
 =======================================================================================
 Because the stock Linux 5.10.70 kernel has `CONFIG_MODULE_SIG is not set`, `rtk_wifi6.ko`
 can be binary-patched and overlaid via `mount -o bind` (Mode A) or packed into Slot 1 (Mode B).

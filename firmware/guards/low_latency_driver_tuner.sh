@@ -1,6 +1,6 @@
 #!/bin/sh
 # ==============================================================================
-# CMCC MR3000D-CIq Driver-Level Low-Latency & HWNAT Fastpath Engine
+# MR3000D-CIq Driver-Level Low-Latency & HWNAT Fastpath Engine
 # File: /var/app/scripts/low_latency_driver_tuner.sh
 # ==============================================================================
 # Optimizes:
@@ -54,7 +54,7 @@ apply_low_latency() {
     sysctl -w net.ipv4.tcp_low_latency=1 >/dev/null 2>&1 || true
     sysctl -w net.ipv4.tcp_tw_reuse=1 >/dev/null 2>&1 || true
 
-    # 5. TCP MSS Clamping to PMTU (prevents campus network / PPPoE / VLAN MTU blackholes)
+    # 5. TCP MSS Clamping to PMTU (prevents PPPoE / VLAN MTU blackholes)
     iptables -t mangle -D FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null || true
     iptables -t mangle -I FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null || true
 

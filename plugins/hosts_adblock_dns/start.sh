@@ -11,12 +11,12 @@ touch "$HOSTS_FILE" 2>/dev/null || true
 sed -i '/# MOD_ADBLOCK_START/,/# MOD_ADBLOCK_END/d' "$HOSTS_FILE" 2>/dev/null || true
 {
     echo "# MOD_ADBLOCK_START"
-    if [ "${BLOCK_CMCC_TELEMETRY:-1}" = "1" ]; then
+    if [ "${BLOCK_VENDOR_TELEMETRY:-1}" = "1" ]; then
         echo "0.0.0.0 ahsap.hejiaqin.cn"
-        echo "0.0.0.0 andlink.cmcc.com"
-        echo "0.0.0.0 ota.cmcc.com"
-        echo "0.0.0.0 dpi.cmcc.com"
-        echo "0.0.0.0 rms.chinamobile.com"
+        echo "0.0.0.0 andlink.vendor.local"
+        echo "0.0.0.0 ota.vendor.local"
+        echo "0.0.0.0 dpi.vendor.local"
+        echo "0.0.0.0 rms.vendor.local"
     fi
     if [ -n "$CUSTOM_DOMAINS" ]; then
         for dom in $(echo "$CUSTOM_DOMAINS" | tr ',;' ' '); do

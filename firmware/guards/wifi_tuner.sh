@@ -1,6 +1,6 @@
 #!/bin/sh
 # ==============================================================================
-# CMCC MR3000D-CIq Wi-Fi 6 AX3000 & RF Studio Tuner
+# MR3000D-CIq Wi-Fi 6 AX3000 & RF Studio Tuner
 # Location: /var/app/scripts/wifi_tuner.sh
 # ==============================================================================
 
@@ -32,8 +32,8 @@ do_status() {
     [ "$WLAN0_BW" = "0" ] && BW5_STR="20MHz"
 
     echo "=== Wi-Fi 6 AX3000 RF Status ==="
-    echo "WLAN0 (5GHz AX 2402M): SSID=${WLAN0_SSID:-CMCC-5G}, Ch=${WLAN0_CH:-44}, BW=${BW5_STR}, Power=${WLAN0_PWR:-100}%, Clients=${WLAN0_STA:-0}"
-    echo "WLAN1 (2.4GHz AX 574M): SSID=${WLAN1_SSID:-CMCC-2.4G}, Ch=${WLAN1_CH:-6}, BW=40MHz, Power=${WLAN1_PWR:-100}%, Clients=${WLAN1_STA:-0}"
+    echo "WLAN0 (5GHz AX 2402M): SSID=${WLAN0_SSID:-Wi-Fi-5G}, Ch=${WLAN0_CH:-44}, BW=${BW5_STR}, Power=${WLAN0_PWR:-100}%, Clients=${WLAN0_STA:-0}"
+    echo "WLAN1 (2.4GHz AX 574M): SSID=${WLAN1_SSID:-Wi-Fi-2.4G}, Ch=${WLAN1_CH:-6}, BW=40MHz, Power=${WLAN1_PWR:-100}%, Clients=${WLAN1_STA:-0}"
     
     if [ -f /var/app/conf/.rf_unlocked ]; then
         echo "REGULATION_OVERRIDE: UNLOCKED (Regulation=NONE, Max EIRP)"
