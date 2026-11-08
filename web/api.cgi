@@ -150,6 +150,21 @@ case "$action" in
         wifi5_ssid=$(iwpriv wlan1 get_mib ssid 2>/dev/null | cut -d':' -f2 | tr -d '\r\n' || echo "MR3000D-5G")
         wifi5_ch=$(iwpriv wlan1 get_mib channel 2>/dev/null | cut -d':' -f2 | tr -d '\r\n' || echo "36")
 
+        w2_scale=$(flash get WLAN_RFPOWER_SCALE 2>/dev/null | cut -d'=' -f2-)
+        case "$w2_scale" in
+            1) w2_power_str="标准模式 (70%)" ;;
+            2) w2_power_str="节能模式 (50%)" ;;
+            3) w2_power_str="微功率 (35%)" ;;
+            *) w2_power_str="穿墙模式 (100%)" ;;
+        esac
+        w5_scale=$(flash get WLAN1_RFPOWER_SCALE 2>/dev/null | cut -d'=' -f2-)
+        case "$w5_scale" in
+            1) w5_power_str="标准模式 (70%)" ;;
+            2) w5_power_str="节能模式 (50%)" ;;
+            3) w5_power_str="微功率 (35%)" ;;
+            *) w5_power_str="穿墙模式 (100%)" ;;
+        esac
+
         # Clean single-line kernel string
         kernel_str=$(head -n 1 /proc/version 2>/dev/null | cut -d' ' -f1-3 | tr -d '\r\n')
         [ -z "$kernel_str" ] && kernel_str="Linux 5.10.70"
@@ -190,6 +205,7 @@ case "$action" in
         "ssid": "$wifi2_ssid",
         "channel": "$wifi2_ch",
         "standard": "802.11b/g/n (574 Mbps)",
+        "power": "$w2_power_str",
         "active": true
       },
       "wifi_5g": {
@@ -197,6 +213,7 @@ case "$action" in
         "channel": "$wifi5_ch",
         "bandwidth": "160 MHz",
         "standard": "Wi-Fi 6 AX (2402 Mbps)",
+        "power": "$w5_power_str",
         "active": true
       }
     },
@@ -301,7 +318,9 @@ EOF
         w2_ssid=$(flash get SSID 2>/dev/null | cut -d'=' -f2-)
         [ -z "$w2_ssid" ] && w2_ssid="MR3000D-2.4G"
         w2_pass=$(flash get WLAN_WPA_PSK 2>/dev/null | cut -d'=' -f2-)
+        w2_auto=$(flash get AUTO_CHANNEL 2>/dev/null | cut -d'=' -f2-)
         w2_ch=$(flash get CHANNEL 2>/dev/null | cut -d'=' -f2-)
+        [ "$w2_auto" = "1" ] && w2_ch="0"
         [ -z "$w2_ch" ] && w2_ch="0"
         w2_bw=$(flash get WLAN_CHANNELWIDTH 2>/dev/null | cut -d'=' -f2-)
         [ -z "$w2_bw" ] && w2_bw="1"
@@ -309,18 +328,40 @@ EOF
         [ -z "$w2_hide" ] && w2_hide="0"
         w2_dis=$(flash get WLAN_DISABLED 2>/dev/null | cut -d'=' -f2-)
         [ -z "$w2_dis" ] && w2_dis="0"
+        w2_power=$(flash get WLAN_RFPOWER_SCALE 2>/dev/null | cut -d'=' -f2-)
+        [ -z "$w2_power" ] && w2_power="0"
+        w2_pct=$(flash get WLAN__TX_POWER_PCT 2>/dev/null | cut -d'=' -f2-)
+        [ -z "$w2_pct" ] && w2_pct="100"
+        w2_enc=$(flash get WLAN_ENCRYPT 2>/dev/null | cut -d'=' -f2-)
+        [ -z "$w2_enc" ] && w2_enc="6"
+        w2_iso=$(flash get WLAN_BLOCK_RELAY 2>/dev/null | cut -d'=' -f2-)
+        [ -z "$w2_iso" ] && w2_iso="0"
 
         w5_ssid=$(flash get WLAN1_SSID 2>/dev/null | cut -d'=' -f2-)
         [ -z "$w5_ssid" ] && w5_ssid="MR3000D-5G"
         w5_pass=$(flash get WLAN1_WPA_PSK 2>/dev/null | cut -d'=' -f2-)
+        w5_auto=$(flash get WLAN1_AUTO_CHANNEL 2>/dev/null | cut -d'=' -f2-)
         w5_ch=$(flash get WLAN1_CHANNEL 2>/dev/null | cut -d'=' -f2-)
-        [ -z "$w5_ch" ] && w5_ch="44"
+        [ "$w5_auto" = "1" ] && w5_ch="0"
+        [ -z "$w5_ch" ] && w5_ch="0"
         w5_bw=$(flash get WLAN1_CHANNELWIDTH 2>/dev/null | cut -d'=' -f2-)
         [ -z "$w5_bw" ] && w5_bw="3"
         w5_hide=$(flash get WLAN1_HIDDEN_SSID 2>/dev/null | cut -d'=' -f2-)
         [ -z "$w5_hide" ] && w5_hide="0"
         w5_dis=$(flash get WLAN1_DISABLED 2>/dev/null | cut -d'=' -f2-)
         [ -z "$w5_dis" ] && w5_dis="0"
+        w5_power=$(flash get WLAN1_RFPOWER_SCALE 2>/dev/null | cut -d'=' -f2-)
+        [ -z "$w5_power" ] && w5_power="0"
+        w5_pct=$(flash get WLAN1_TX_POWER_PCT 2>/dev/null | cut -d'=' -f2-)
+        [ -z "$w5_pct" ] && w5_pct="100"
+        w5_enc=$(flash get WLAN1_ENCRYPT 2>/dev/null | cut -d'=' -f2-)
+        [ -z "$w5_enc" ] && w5_enc="6"
+        w5_iso=$(flash get WLAN1_BLOCK_RELAY 2>/dev/null | cut -d'=' -f2-)
+        [ -z "$w5_iso" ] && w5_iso="0"
+        w5_ofdma=$(flash get WLAN1_OFDMA_ENABLED_FOR_WEB 2>/dev/null | cut -d'=' -f2-)
+        [ -z "$w5_ofdma" ] && w5_ofdma="1"
+        w5_mimo=$(flash get WLAN1_MIMO_ENABLED 2>/dev/null | cut -d'=' -f2-)
+        [ -z "$w5_mimo" ] && w5_mimo="0"
 
         cat << EOF
 {
@@ -330,6 +371,10 @@ EOF
     "password": "$w2_pass",
     "channel": $w2_ch,
     "bandwidth": $w2_bw,
+    "power": $w2_power,
+    "power_pct": $w2_pct,
+    "encrypt": $w2_enc,
+    "isolation": $([ "$w2_iso" = "1" ] && echo true || echo false),
     "hidden": $([ "$w2_hide" = "1" ] && echo true || echo false),
     "enabled": $([ "$w2_dis" = "1" ] && echo false || echo true)
   },
@@ -338,6 +383,12 @@ EOF
     "password": "$w5_pass",
     "channel": $w5_ch,
     "bandwidth": $w5_bw,
+    "power": $w5_power,
+    "power_pct": $w5_pct,
+    "encrypt": $w5_enc,
+    "isolation": $([ "$w5_iso" = "1" ] && echo true || echo false),
+    "ofdma": $([ "$w5_ofdma" = "1" ] && echo true || echo false),
+    "mimo": $([ "$w5_mimo" = "1" ] && echo true || echo false),
     "hidden": $([ "$w5_hide" = "1" ] && echo true || echo false),
     "enabled": $([ "$w5_dis" = "1" ] && echo false || echo true)
   }
@@ -352,6 +403,9 @@ EOF
         val_bw_2g=$(get_param "bw_2g")
         val_hide_2g=$(get_param "hide_2g")
         val_enable_2g=$(get_param "enable_2g")
+        val_power_2g=$(get_param "power_2g")
+        val_encrypt_2g=$(get_param "encrypt_2g")
+        val_isolate_2g=$(get_param "isolate_2g")
 
         val_ssid_5g=$(get_param "ssid_5g")
         val_pass_5g=$(get_param "pass_5g")
@@ -359,23 +413,77 @@ EOF
         val_bw_5g=$(get_param "bw_5g")
         val_hide_5g=$(get_param "hide_5g")
         val_enable_5g=$(get_param "enable_5g")
+        val_power_5g=$(get_param "power_5g")
+        val_encrypt_5g=$(get_param "encrypt_5g")
+        val_isolate_5g=$(get_param "isolate_5g")
+        val_ofdma_5g=$(get_param "ofdma_5g")
+        val_mimo_5g=$(get_param "mimo_5g")
 
-        [ -n "$val_ssid_2g" ] && flash set SSID "$val_ssid_2g" >/dev/null 2>&1
-        [ -n "$val_pass_2g" ] && flash set WLAN_WPA_PSK "$val_pass_2g" >/dev/null 2>&1
-        [ -n "$val_ch_2g" ] && flash set CHANNEL "$val_ch_2g" >/dev/null 2>&1
-        [ -n "$val_bw_2g" ] && flash set WLAN_CHANNELWIDTH "$val_bw_2g" >/dev/null 2>&1
-        [ -n "$val_hide_2g" ] && flash set HIDDEN_SSID "$val_hide_2g" >/dev/null 2>&1
-        [ -n "$val_enable_2g" ] && flash set WLAN_DISABLED "$([ "$val_enable_2g" = "1" ] && echo 0 || echo 1)" >/dev/null 2>&1
+        if [ -n "$val_ssid_2g" ] || [ -n "$val_power_2g" ] || [ -n "$val_enable_2g" ]; then
+            [ -n "$val_ssid_2g" ] && flash set SSID "$val_ssid_2g" >/dev/null 2>&1
+            [ -n "$val_pass_2g" ] && flash set WLAN_WPA_PSK "$val_pass_2g" >/dev/null 2>&1
+            if [ -n "$val_ch_2g" ]; then
+                if [ "$val_ch_2g" = "0" ]; then
+                    flash set AUTO_CHANNEL 1 >/dev/null 2>&1
+                else
+                    flash set AUTO_CHANNEL 0 >/dev/null 2>&1
+                    flash set CHANNEL "$val_ch_2g" >/dev/null 2>&1
+                fi
+            fi
+            [ -n "$val_bw_2g" ] && flash set WLAN_CHANNELWIDTH "$val_bw_2g" >/dev/null 2>&1
+            [ -n "$val_hide_2g" ] && flash set HIDDEN_SSID "$val_hide_2g" >/dev/null 2>&1
+            [ -n "$val_enable_2g" ] && flash set WLAN_DISABLED "$([ "$val_enable_2g" = "1" ] && echo 0 || echo 1)" >/dev/null 2>&1
+            if [ -n "$val_power_2g" ]; then
+                flash set WLAN_RFPOWER_SCALE "$val_power_2g" >/dev/null 2>&1
+                case "$val_power_2g" in
+                    0) p2_pct=100 ;;
+                    1) p2_pct=70 ;;
+                    2) p2_pct=50 ;;
+                    3) p2_pct=35 ;;
+                    *) p2_pct=100 ;;
+                esac
+                flash set WLAN__TX_POWER_PCT "$p2_pct" >/dev/null 2>&1
+            fi
+            [ -n "$val_encrypt_2g" ] && flash set WLAN_ENCRYPT "$val_encrypt_2g" >/dev/null 2>&1
+            [ -n "$val_isolate_2g" ] && flash set WLAN_BLOCK_RELAY "$val_isolate_2g" >/dev/null 2>&1
+        fi
 
-        [ -n "$val_ssid_5g" ] && flash set WLAN1_SSID "$val_ssid_5g" >/dev/null 2>&1
-        [ -n "$val_pass_5g" ] && flash set WLAN1_WPA_PSK "$val_pass_5g" >/dev/null 2>&1
-        [ -n "$val_ch_5g" ] && flash set WLAN1_CHANNEL "$val_ch_5g" >/dev/null 2>&1
-        [ -n "$val_bw_5g" ] && flash set WLAN1_CHANNELWIDTH "$val_bw_5g" >/dev/null 2>&1
-        [ -n "$val_hide_5g" ] && flash set WLAN1_HIDDEN_SSID "$val_hide_5g" >/dev/null 2>&1
-        [ -n "$val_enable_5g" ] && flash set WLAN1_DISABLED "$([ "$val_enable_5g" = "1" ] && echo 0 || echo 1)" >/dev/null 2>&1
+        if [ -n "$val_ssid_5g" ] || [ -n "$val_power_5g" ] || [ -n "$val_enable_5g" ]; then
+            [ -n "$val_ssid_5g" ] && flash set WLAN1_SSID "$val_ssid_5g" >/dev/null 2>&1
+            [ -n "$val_pass_5g" ] && flash set WLAN1_WPA_PSK "$val_pass_5g" >/dev/null 2>&1
+            if [ -n "$val_ch_5g" ]; then
+                if [ "$val_ch_5g" = "0" ]; then
+                    flash set WLAN1_AUTO_CHANNEL 1 >/dev/null 2>&1
+                else
+                    flash set WLAN1_AUTO_CHANNEL 0 >/dev/null 2>&1
+                    flash set WLAN1_CHANNEL "$val_ch_5g" >/dev/null 2>&1
+                fi
+            fi
+            [ -n "$val_bw_5g" ] && flash set WLAN1_CHANNELWIDTH "$val_bw_5g" >/dev/null 2>&1
+            [ -n "$val_hide_5g" ] && flash set WLAN1_HIDDEN_SSID "$val_hide_5g" >/dev/null 2>&1
+            [ -n "$val_enable_5g" ] && flash set WLAN1_DISABLED "$([ "$val_enable_5g" = "1" ] && echo 0 || echo 1)" >/dev/null 2>&1
+            if [ -n "$val_power_5g" ]; then
+                flash set WLAN1_RFPOWER_SCALE "$val_power_5g" >/dev/null 2>&1
+                case "$val_power_5g" in
+                    0) p5_pct=100 ;;
+                    1) p5_pct=70 ;;
+                    2) p5_pct=50 ;;
+                    3) p5_pct=35 ;;
+                    *) p5_pct=100 ;;
+                esac
+                flash set WLAN1_TX_POWER_PCT "$p5_pct" >/dev/null 2>&1
+            fi
+            [ -n "$val_encrypt_5g" ] && flash set WLAN1_ENCRYPT "$val_encrypt_5g" >/dev/null 2>&1
+            [ -n "$val_isolate_5g" ] && flash set WLAN1_BLOCK_RELAY "$val_isolate_5g" >/dev/null 2>&1
+            if [ -n "$val_ofdma_5g" ]; then
+                flash set WLAN1_OFDMA_ENABLED_FOR_WEB "$val_ofdma_5g" >/dev/null 2>&1
+                flash set WLAN1_OFDMA_ENABLED "$val_ofdma_5g" >/dev/null 2>&1
+            fi
+            [ -n "$val_mimo_5g" ] && flash set WLAN1_MIMO_ENABLED "$val_mimo_5g" >/dev/null 2>&1
+        fi
 
         (sleep 1; /bin/wlan_apply restart >/dev/null 2>&1 || /sbin/wlan_apply restart >/dev/null 2>&1) &
-        echo '{"status":0,"message":"Wi-Fi 配置已写入闪存，正在无缝重载无线射频..."}'
+        echo '{"status":0,"message":"Wi-Fi 射频参数与发射功率已保存，正在重新加载无线驱动..."}'
         ;;
 
     # Network: Query full network parameters (LAN, WAN, OP_MODE, DMZ, UPNP)

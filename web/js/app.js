@@ -112,6 +112,7 @@ function switchTab(targetId) {
   if (targetId === 'tab-network') loadNetworkSettings();
   if (targetId === 'tab-wifi') loadWifiSettings();
   if (targetId === 'tab-clients') loadClientList();
+  if (targetId === 'tab-plugins') refreshPlugins();
   if (targetId === 'tab-adblock') loadAdblockRules();
   if (targetId === 'tab-system') loadCronTasks();
   if (targetId === 'tab-logs') fetchLiveLogs();
@@ -120,18 +121,35 @@ function switchTab(targetId) {
 }
 
 function openPluginGui(id) {
-  const tabMap = {
-    'hosts_adblock_dns': 'tab-adblock',
-    'custom_userscript': 'tab-system',
-    'entware_package_mgr': 'tab-system'
-  };
-  const target = tabMap[id];
-  if (target) {
-    switchTab(target);
-    showToast(`已转入【${id}】管理控制台`, 'info');
+  if (id === 'hosts_adblock_dns') {
+    switchTab('tab-adblock');
+    return;
+  }
+  if (id === 'entware_package_mgr') {
+    switchTab('tab-system');
+    return;
+  }
+
+  // Open inline management panel under Plugin Center
+  const wrapper = document.getElementById('plugin-panel-wrapper');
+  const usPanel = document.getElementById('panel-plugin-userscript');
+  if (!wrapper) return;
+
+  wrapper.style.display = 'block';
+  if (usPanel) usPanel.style.display = 'none';
+
+  if (id === 'custom_userscript') {
+    if (usPanel) usPanel.style.display = 'block';
+    loadUserScript();
+    usPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   } else {
     showToast(`插件 ${id} 暂无独立 GUI 页面`, 'info');
   }
+}
+
+function closePluginPanel() {
+  const wrapper = document.getElementById('plugin-panel-wrapper');
+  if (wrapper) wrapper.style.display = 'none';
 }
 
 // System Overview
@@ -210,14 +228,18 @@ async function refreshSysInfo() {
         if (s.wifi.wifi_5g && s.wifi.wifi_5g.ssid) {
           const elW5Ssid = document.getElementById('wifi5-ssid');
           const elW5Ch = document.getElementById('wifi5-ch');
+          const elW5Power = document.getElementById('wifi5-power');
           if (elW5Ssid) elW5Ssid.textContent = s.wifi.wifi_5g.ssid;
           if (elW5Ch) elW5Ch.textContent = `${s.wifi.wifi_5g.channel} (160 MHz)`;
+          if (elW5Power) elW5Power.textContent = s.wifi.wifi_5g.power || '穿墙模式 (100%)';
         }
         if (s.wifi.wifi_2g && s.wifi.wifi_2g.ssid) {
           const elW2Ssid = document.getElementById('wifi2-ssid');
           const elW2Ch = document.getElementById('wifi2-ch');
+          const elW2Power = document.getElementById('wifi2-power');
           if (elW2Ssid) elW2Ssid.textContent = s.wifi.wifi_2g.ssid;
           if (elW2Ch) elW2Ch.textContent = `${s.wifi.wifi_2g.channel} (40 MHz)`;
+          if (elW2Power) elW2Power.textContent = s.wifi.wifi_2g.power || '穿墙模式 (100%)';
         }
       }
 
@@ -407,12 +429,21 @@ async function loadWifiSettings() {
         const elPass = document.getElementById('wifi-pass-2g');
         const elCh = document.getElementById('wifi-ch-2g');
         const elBw = document.getElementById('wifi-bw-2g');
+        const elPower = document.getElementById('wifi-power-2g');
+        const elEnc = document.getElementById('wifi-encrypt-2g');
+        const elIso = document.getElementById('wifi-isolate-2g');
         const elHide = document.getElementById('wifi-hide-2g');
         const elEnable = document.getElementById('wifi-enable-2g');
         if (elSsid) elSsid.value = w2.ssid || '';
         if (elPass) elPass.value = w2.password || '';
-        if (elCh) elCh.value = String(w2.channel || 0);
+        if (elCh) elCh.value = String(w2.channel !== undefined ? w2.channel : 0);
         if (elBw) elBw.value = String(w2.bandwidth || 1);
+        if (elPower) elPower.value = String(w2.power !== undefined ? w2.power : 0);
+        if (elEnc) {
+          elEnc.value = String(w2.encrypt !== undefined ? w2.encrypt : 6);
+          onEncryptChange('2g');
+        }
+        if (elIso) elIso.checked = !!w2.isolation;
         if (elHide) elHide.checked = !!w2.hidden;
         if (elEnable) elEnable.checked = !!w2.enabled;
       }
@@ -422,12 +453,25 @@ async function loadWifiSettings() {
         const elPass5 = document.getElementById('wifi-pass-5g');
         const elCh5 = document.getElementById('wifi-ch-5g');
         const elBw5 = document.getElementById('wifi-bw-5g');
+        const elPower5 = document.getElementById('wifi-power-5g');
+        const elEnc5 = document.getElementById('wifi-encrypt-5g');
+        const elIso5 = document.getElementById('wifi-isolate-5g');
+        const elOfdma5 = document.getElementById('wifi-ofdma-5g');
+        const elMimo5 = document.getElementById('wifi-mimo-5g');
         const elHide5 = document.getElementById('wifi-hide-5g');
         const elEnable5 = document.getElementById('wifi-enable-5g');
         if (elSsid5) elSsid5.value = w5.ssid || '';
         if (elPass5) elPass5.value = w5.password || '';
-        if (elCh5) elCh5.value = String(w5.channel || 0);
-        if (elBw5) elBw5.value = String(w5.bandwidth || 3);
+        if (elCh5) elCh5.value = String(w5.channel !== undefined ? w5.channel : 0);
+        if (elBw5) elBw5.value = String(w5.bandwidth !== undefined ? w5.bandwidth : 3);
+        if (elPower5) elPower5.value = String(w5.power !== undefined ? w5.power : 0);
+        if (elEnc5) {
+          elEnc5.value = String(w5.encrypt !== undefined ? w5.encrypt : 6);
+          onEncryptChange('5g');
+        }
+        if (elIso5) elIso5.checked = !!w5.isolation;
+        if (elOfdma5) elOfdma5.checked = !!w5.ofdma;
+        if (elMimo5) elMimo5.checked = !!w5.mimo;
         if (elHide5) elHide5.checked = !!w5.hidden;
         if (elEnable5) elEnable5.checked = !!w5.enabled;
       }
@@ -441,27 +485,57 @@ async function saveWifiSettings(event, band) {
   if (event) event.preventDefault();
   const btn = band === '2g' ? document.getElementById('btn-save-w2') : document.getElementById('btn-save-w5');
   await withButtonLoading(btn, async () => {
-    const params = { action: 'wifi_set' };
+    const params = { action: 'wifi_set', band: band };
     if (band === '2g') {
       params.ssid_2g = document.getElementById('wifi-ssid-2g').value.trim();
       params.pass_2g = document.getElementById('wifi-pass-2g').value.trim();
       params.ch_2g = document.getElementById('wifi-ch-2g').value;
       params.bw_2g = document.getElementById('wifi-bw-2g').value;
+      params.power_2g = document.getElementById('wifi-power-2g').value;
+      params.encrypt_2g = document.getElementById('wifi-encrypt-2g').value;
+      params.isolate_2g = document.getElementById('wifi-isolate-2g').checked ? '1' : '0';
       params.hide_2g = document.getElementById('wifi-hide-2g').checked ? '1' : '0';
       params.enable_2g = document.getElementById('wifi-enable-2g').checked ? '1' : '0';
+
+      if (params.encrypt_2g !== '0' && params.pass_2g.length < 8) {
+        throw new Error('2.4G 无线密码长度不能少于 8 位字符');
+      }
     } else {
       params.ssid_5g = document.getElementById('wifi-ssid-5g').value.trim();
       params.pass_5g = document.getElementById('wifi-pass-5g').value.trim();
       params.ch_5g = document.getElementById('wifi-ch-5g').value;
       params.bw_5g = document.getElementById('wifi-bw-5g').value;
+      params.power_5g = document.getElementById('wifi-power-5g').value;
+      params.encrypt_5g = document.getElementById('wifi-encrypt-5g').value;
+      params.isolate_5g = document.getElementById('wifi-isolate-5g').checked ? '1' : '0';
+      params.ofdma_5g = document.getElementById('wifi-ofdma-5g').checked ? '1' : '0';
+      params.mimo_5g = document.getElementById('wifi-mimo-5g').checked ? '1' : '0';
       params.hide_5g = document.getElementById('wifi-hide-5g').checked ? '1' : '0';
       params.enable_5g = document.getElementById('wifi-enable-5g').checked ? '1' : '0';
+
+      if (params.encrypt_5g !== '0' && params.pass_5g.length < 8) {
+        throw new Error('5G Wi-Fi 密码长度不能少于 8 位字符');
+      }
     }
 
     const res = await apiCall(API_BASE, params, 15000);
     showToast(res.message || `${band.toUpperCase()} Wi-Fi 配置已生效！`, 'success');
     refreshSysInfo();
   });
+}
+
+function onEncryptChange(band) {
+  const encEl = document.getElementById(`wifi-encrypt-${band}`);
+  const passWrap = document.getElementById(`wifi-pass-wrap-${band}`);
+  const passInput = document.getElementById(`wifi-pass-${band}`);
+  if (!encEl || !passWrap) return;
+  if (encEl.value === '0') {
+    passWrap.style.display = 'none';
+    if (passInput) passInput.removeAttribute('required');
+  } else {
+    passWrap.style.display = 'block';
+    if (passInput) passInput.setAttribute('required', 'true');
+  }
 }
 
 function togglePassVisibility(inputId) {

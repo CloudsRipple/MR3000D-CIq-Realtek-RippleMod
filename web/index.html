@@ -108,6 +108,10 @@
             <span class="metric-val" id="wifi5-ssid" style="font-weight: 600;">MR3000D-5G</span>
           </div>
           <div class="metric-row">
+            <span class="metric-label">发射功率</span>
+            <span class="metric-val" id="wifi5-power" style="color: var(--primary); font-weight: 500;">穿墙模式 (100%)</span>
+          </div>
+          <div class="metric-row">
             <span class="metric-label">信道 / 频宽</span>
             <span class="metric-val" id="wifi5-ch">36 (160 MHz)</span>
           </div>
@@ -128,6 +132,10 @@
           <div class="metric-row">
             <span class="metric-label">SSID</span>
             <span class="metric-val" id="wifi2-ssid" style="font-weight: 600;">MR3000D-2.4G</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">发射功率</span>
+            <span class="metric-val" id="wifi2-power" style="color: var(--primary); font-weight: 500;">穿墙模式 (100%)</span>
           </div>
           <div class="metric-row">
             <span class="metric-label">信道 / 频宽</span>
@@ -470,9 +478,22 @@
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
         <div>
           <h3 style="font-size: 16px; font-weight: 600;">无线 Wi-Fi 设置与调优</h3>
-          <p style="font-size: 13px; color: var(--text-muted);">配置 2.4G 与 5G Wi-Fi 6 频段的 SSID 名称、加密密码、信道与频宽</p>
+          <p style="font-size: 13px; color: var(--text-muted);">配置 2.4G 与 5G Wi-Fi 6 频段的 SSID 名称、加密密码、发射功率、信道与频宽</p>
         </div>
         <button class="btn btn-secondary btn-sm" onclick="loadWifiSettings()">刷新参数</button>
+      </div>
+
+      <!-- Wi-Fi Power Hint Card -->
+      <div class="card" style="margin-bottom: 16px; background: #f8fafc; border-left: 4px solid var(--primary); padding: 14px 18px;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span style="font-size: 22px;">📶</span>
+          <div>
+            <div style="font-weight: 600; font-size: 14px;">双频无线发射与射频功率控制</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
+              支持 100% 穿墙模式、70% 标准模式、50% 节能模式及微功率低辐射模式自由切换。5GHz 频段支持 Wi-Fi 6 (802.11ax) 160MHz 超大频宽与 OFDMA/MU-MIMO 并发硬件加速。
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;">
@@ -481,7 +502,7 @@
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
             <div style="display: flex; align-items: center; gap: 8px;">
               <span class="wifi-badge-n">Wi-Fi 4</span>
-              <span style="font-weight: 600; font-size: 15px;">2.4 GHz 无线频段</span>
+              <span style="font-weight: 600; font-size: 15px;">2.4 GHz 基础频段</span>
             </div>
             <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer;">
               <input type="checkbox" id="wifi-enable-2g" checked> 开启射频
@@ -495,7 +516,26 @@
             </div>
 
             <div style="margin-bottom: 14px;">
-              <label class="form-label">无线加密密码 (WPA2-PSK)</label>
+              <label class="form-label">信号发射功率</label>
+              <select id="wifi-power-2g" class="form-input">
+                <option value="0">🚀 穿墙模式 (100% 满功率 / 超强覆盖)</option>
+                <option value="1">⚖️ 标准模式 (70% 功率 / 均衡推荐)</option>
+                <option value="2">🌱 节能模式 (50% 功率 / 绿色低辐射)</option>
+                <option value="3">💤 微功率模式 (35% 功率 / 宿舍低辐射)</option>
+              </select>
+            </div>
+
+            <div style="margin-bottom: 14px;">
+              <label class="form-label">安全加密协议</label>
+              <select id="wifi-encrypt-2g" class="form-input" onchange="onEncryptChange('2g')">
+                <option value="6">WPA2-PSK / WPA3-SAE 混合加密 (推荐)</option>
+                <option value="4">WPA2-PSK 个人版 (经典兼容)</option>
+                <option value="0">无密码 (开放网络 / 不安全)</option>
+              </select>
+            </div>
+
+            <div style="margin-bottom: 14px;" id="wifi-pass-wrap-2g">
+              <label class="form-label">无线连接密码 (8-63位字符)</label>
               <div style="display: flex; gap: 8px;">
                 <input type="password" id="wifi-pass-2g" class="form-input" placeholder="至少8位字符" minlength="8">
                 <button type="button" class="btn btn-secondary btn-sm" onclick="togglePassVisibility('wifi-pass-2g')">显示</button>
@@ -506,7 +546,7 @@
               <div>
                 <label class="form-label">工作信道</label>
                 <select id="wifi-ch-2g" class="form-input">
-                  <option value="0">自动选择 (Auto)</option>
+                  <option value="0">自动选择 (Auto 推荐)</option>
                   <option value="1">信道 1 (2412 MHz)</option>
                   <option value="6">信道 6 (2437 MHz)</option>
                   <option value="11">信道 11 (2462 MHz)</option>
@@ -525,15 +565,18 @@
               <div>
                 <label class="form-label">频宽模式</label>
                 <select id="wifi-bw-2g" class="form-input">
-                  <option value="0">20 MHz</option>
-                  <option value="1">20 / 40 MHz 自动</option>
+                  <option value="1">20 / 40 MHz 自动 (最大 574 Mbps)</option>
+                  <option value="0">20 MHz 互不干扰纯净模式</option>
                 </select>
               </div>
             </div>
 
-            <div style="margin-bottom: 16px;">
+            <div style="margin-bottom: 16px; display: flex; flex-direction: column; gap: 8px; background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
               <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
-                <input type="checkbox" id="wifi-hide-2g"> 隐藏网络 (不广播此 SSID)
+                <input type="checkbox" id="wifi-hide-2g"> 隐藏网络 (不向外界广播 SSID)
+              </label>
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
+                <input type="checkbox" id="wifi-isolate-2g"> 开启 AP 隔离 (禁止无线设备间相互窥探与访问)
               </label>
             </div>
 
@@ -560,7 +603,26 @@
             </div>
 
             <div style="margin-bottom: 14px;">
-              <label class="form-label">无线加密密码 (WPA2/WPA3)</label>
+              <label class="form-label">信号发射功率</label>
+              <select id="wifi-power-5g" class="form-input">
+                <option value="0">🚀 穿墙模式 (100% 满功率 / 超强覆盖)</option>
+                <option value="1">⚖️ 标准模式 (70% 功率 / 均衡推荐)</option>
+                <option value="2">🌱 节能模式 (50% 功率 / 绿色低辐射)</option>
+                <option value="3">💤 微功率模式 (35% 功率 / 宿舍低辐射)</option>
+              </select>
+            </div>
+
+            <div style="margin-bottom: 14px;">
+              <label class="form-label">安全加密协议</label>
+              <select id="wifi-encrypt-5g" class="form-input" onchange="onEncryptChange('5g')">
+                <option value="6">WPA2-PSK / WPA3-SAE 混合加密 (推荐 - Wi-Fi 6 标配)</option>
+                <option value="4">WPA2-PSK 个人版 (经典兼容)</option>
+                <option value="0">无密码 (开放网络 / 不安全)</option>
+              </select>
+            </div>
+
+            <div style="margin-bottom: 14px;" id="wifi-pass-wrap-5g">
+              <label class="form-label">无线连接密码 (8-63位字符)</label>
               <div style="display: flex; gap: 8px;">
                 <input type="password" id="wifi-pass-5g" class="form-input" placeholder="至少8位字符" minlength="8">
                 <button type="button" class="btn btn-secondary btn-sm" onclick="togglePassVisibility('wifi-pass-5g')">显示</button>
@@ -571,12 +633,12 @@
               <div>
                 <label class="form-label">工作信道</label>
                 <select id="wifi-ch-5g" class="form-input">
-                  <option value="0">自动选择 (Auto)</option>
-                  <option value="36">信道 36 (5180 MHz)</option>
+                  <option value="0">自动选择 (Auto 推荐)</option>
+                  <option value="36">信道 36 (5180 MHz 常用)</option>
                   <option value="40">信道 40 (5200 MHz)</option>
                   <option value="44">信道 44 (5220 MHz)</option>
                   <option value="48">信道 48 (5240 MHz)</option>
-                  <option value="149">信道 149 (5745 MHz)</option>
+                  <option value="149">信道 149 (5745 MHz 高频)</option>
                   <option value="153">信道 153 (5765 MHz)</option>
                   <option value="157">信道 157 (5785 MHz)</option>
                   <option value="161">信道 161 (5805 MHz)</option>
@@ -585,7 +647,7 @@
               <div>
                 <label class="form-label">频宽模式</label>
                 <select id="wifi-bw-5g" class="form-input">
-                  <option value="3">160 MHz (超宽频 2402 Mbps)</option>
+                  <option value="3">160 MHz (超宽频 2402 Mbps 极速)</option>
                   <option value="2">80 MHz (主流兼容 1201 Mbps)</option>
                   <option value="1">40 MHz</option>
                   <option value="0">20 MHz</option>
@@ -593,13 +655,22 @@
               </div>
             </div>
 
-            <div style="margin-bottom: 16px;">
+            <div style="margin-bottom: 16px; display: flex; flex-direction: column; gap: 8px; background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
               <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
-                <input type="checkbox" id="wifi-hide-5g"> 隐藏网络 (不广播此 SSID)
+                <input type="checkbox" id="wifi-hide-5g"> 隐藏网络 (不向外界广播 SSID)
+              </label>
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
+                <input type="checkbox" id="wifi-isolate-5g"> 开启 AP 隔离 (禁止无线设备间相互窥探与访问)
+              </label>
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
+                <input type="checkbox" id="wifi-ofdma-5g" checked> 开启 Wi-Fi 6 OFDMA 并发加速 (多设备同频分时复用，低延迟)
+              </label>
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;">
+                <input type="checkbox" id="wifi-mimo-5g"> 开启 MU-MIMO 多收多发 (多天线多终端并行吞吐倍增)
               </label>
             </div>
 
-            <button type="submit" class="btn btn-primary" id="btn-save-w5">保存 5G 配置</button>
+            <button type="submit" class="btn btn-primary" id="btn-save-w5">保存 5G Wi-Fi 6 配置</button>
           </form>
         </div>
       </div>
@@ -675,6 +746,25 @@
 
       <div id="plugin-list-container">
         <!-- Dynamically rendered by app.js -->
+      </div>
+
+      <!-- Plugin Detail / Management Drawer (Activated when user clicks '打开面板') -->
+      <div id="plugin-panel-wrapper" style="display: none; margin-top: 24px;">
+        <!-- Panel 2: UserScript Panel -->
+        <div id="panel-plugin-userscript" class="card" style="display: none; border-left: 4px solid var(--primary); margin-bottom: 20px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+            <span style="font-size: 16px; font-weight: 700;">开机自启 Shell 脚本编排</span>
+            <button class="btn btn-secondary btn-sm" onclick="closePluginPanel()">收起面板</button>
+          </div>
+          <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+            系统开机网络就绪后由后台自动执行的自定义 Shell 脚本：
+          </p>
+          <textarea id="userscript-editor" class="code-editor" rows="8" placeholder="#!/bin/sh&#10;# 自定义开机执行命令"></textarea>
+          <div style="margin-top: 12px; display: flex; gap: 10px; justify-content: flex-end;">
+            <button class="btn btn-secondary" onclick="runUserScriptNow(this)">立即试运行</button>
+            <button class="btn btn-primary" onclick="saveUserScript(this)">保存脚本</button>
+          </div>
+        </div>
       </div>
     </section>
 
