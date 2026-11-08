@@ -63,20 +63,22 @@ if [ -d "$SRC" ] && [ -d "$APP" ]; then
     for d in "$KEEP"/*; do
         [ -d "$d" ] || continue
         n=${d##*/}
-        [ -d "$APP/plugins/$n" ] && cp -p "$d"/. "$APP/plugins/$n"/ 2>/dev/null
+        # plugin existed before: respect its enabled/disabled state
+        [ -e "$d/.enabled" ] || rm -f "$APP/plugins/$n/.enabled"
         for f in config.conf .enabled user_run.sh; do
             [ -e "$d/$f" ] && cp -p "$d/$f" "$APP/plugins/$n/$f"
         done
     done
     rm -rf "$KEEP"
     chmod +x "$APP"/bin/* "$APP"/core_system/init.d/*.sh "$APP"/core_system/runtime/*.sh \
-        "$APP"/plugin_engine/*.sh "$APP"/plugins/*/*.sh "$APP"/web/*.cgi "$APP"/web/cgi-bin/*.cgi 2>/dev/null
+        "$APP"/plugin_engine/*.sh "$APP"/scripts/*.sh "$APP"/plugins/*/*.sh "$APP"/web/*.cgi "$APP"/web/cgi-bin/*.cgi 2>/dev/null
     # user.sh needs dirname before it links applets itself
     if [ -x "$APP/bin/busybox" ]; then
         for a in dirname basename; do [ -e "$APP/bin/$a" ] || ln -sf busybox "$APP/bin/$a"; done
     fi
     export PATH="$APP/bin:$PATH"
-    sh "$APP/core_system/init.d/user.sh" &
+    # delay like stock rcS does for /var/app/user.sh, so the stock firewall/network init finishes first
+    (sleep 20; sh "$APP/core_system/init.d/user.sh") &
 fi
 
 # 4. Wi-Fi / IRQ low-latency tuning
@@ -147,12 +149,14 @@ def stage(rootfs, staging):
             raise ValueError(f"{b} is not MIPS32 big-endian ELF")
     # stock busybox/dropbear names stay untouched; suite binaries live under /var/app/bin
 
-    # rollback guard + tuning scripts -> /bin
+    # rollback guard + tuning scripts -> /bin, and -> suite scripts/ (ripple_api_daemon calls /var/app/scripts/*)
     gdir = os.path.join(REPO, "firmware", "guards")
+    os.makedirs(os.path.join(dst_suite, "scripts"), exist_ok=True)
     for g in GUARDS:
-        dst = os.path.join(staging, "bin", g)
-        shutil.copy2(os.path.join(gdir, g), dst)
-        os.chmod(dst, 0o755)
+        for d in (os.path.join(staging, "bin"), os.path.join(dst_suite, "scripts")):
+            dst = os.path.join(d, g)
+            shutil.copy2(os.path.join(gdir, g), dst)
+            os.chmod(dst, 0o755)
 
     ko = os.path.join(staging, KO_REL)
     r = subprocess.run([sys.executable, os.path.join(gdir, "patch_rtk_wifi6_ko.py"),
