@@ -1,0 +1,9 @@
+{
+  "id": "entware_package_mgr",
+  "name": "Entware & Python 环境中心",
+  "version": "1.0.0",
+  "description": "基于 Entware (OPKG) 的通用嵌入式运行环境，支持一键安装 Python 3、系统分析与开发工具链。",
+  "author": "MR3000D Community",
+  "autostart": true,
+  "icon": "box"
+}

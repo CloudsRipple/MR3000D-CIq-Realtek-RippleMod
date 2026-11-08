@@ -1,0 +1,9 @@
+{
+  "id": "hosts_adblock_dns",
+  "name": "DNS 增强与广告拦截",
+  "version": "1.2.0",
+  "description": "基于 Dnsmasq 的域名重定向与广告拦截引擎，支持自定义黑白名单与内网域名劫持。",
+  "author": "Ripple-mod Community",
+  "autostart": true,
+  "icon": "shield-check"
+}

@@ -1,0 +1,11 @@
+# Ripple-mod gitignore
+.DS_Store
+*.tmp
+*.tmp.*
+*.lock
+*.log
+__pycache__/
+*.pyc
+firmware_images/*.tar.gz
+firmware_images/*.uImage
+firmware_images/*.squashfs

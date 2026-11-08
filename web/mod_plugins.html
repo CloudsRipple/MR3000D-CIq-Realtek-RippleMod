@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ripple-mod 控制台</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="brand-title">
+        <div class="brand-logo">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2 12c3-4 6-4 9 0s6 4 9 0"></path>
+            <path d="M2 7c3-4 6-4 9 0s6 4 9 0"></path>
+            <path d="M2 17c3-4 6-4 9 0s6 4 9 0"></path>
+          </svg>
+        </div>
+        <span>Ripple-mod</span>
+        <span class="brand-badge">RTL8198D</span>
+      </div>
+      <div id="wan-status-badge" class="status-badge online">
+        <span class="dot-pulse"></span>
+        <span id="wan-status-text">系统正常运行</span>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="nav-tabs">
+      <button class="nav-tab active" data-target="tab-overview">系统概览</button>
+      <button class="nav-tab" data-target="tab-runtime">运行环境与 Python</button>
+      <button class="nav-tab" data-target="tab-plugins">插件中心</button>
+      <button class="nav-tab" data-target="tab-adblock">DNS 与去广告</button>
+      <button class="nav-tab" data-target="tab-userscript">自定义脚本</button>
+      <button class="nav-tab" data-target="tab-logs">实时日志</button>
+    </nav>
+
+    <!-- Tab 1: System Overview -->
+    <section id="tab-overview" class="tab-content active">
+      <!-- 3 Clean Resource Gauges -->
+      <div class="gauge-grid">
+        <!-- CPU Gauge -->
+        <div class="gauge-card">
+          <div class="gauge-header">
+            <span class="gauge-title">CPU 负载</span>
+            <span class="brand-badge">双核 1.0 GHz</span>
+          </div>
+          <div class="gauge-val-big" id="sys-cpu-pct">--%</div>
+          <div class="progress-container">
+            <div class="progress-bar" id="sys-cpu-bar" style="width: 0%;"></div>
+          </div>
+          <div class="gauge-subtext">
+            <span>负载均值: <b id="sys-load">--</b></span>
+            <span id="sys-cpu-status" style="color: var(--success); font-weight: 500;">正常</span>
+          </div>
+        </div>
+
+        <!-- Memory Gauge -->
+        <div class="gauge-card">
+          <div class="gauge-header">
+            <span class="gauge-title">内存占用</span>
+            <span class="brand-badge">256 MB</span>
+          </div>
+          <div class="gauge-val-big" id="sys-mem-pct">--%</div>
+          <div class="progress-container">
+            <div class="progress-bar" id="sys-mem-bar" style="width: 0%;"></div>
+          </div>
+          <div class="gauge-subtext">
+            <span id="sys-mem-detail">-- / 256 MB</span>
+            <span id="sys-mem-free" style="color: var(--success);">-- MB 可用</span>
+          </div>
+        </div>
+
+        <!-- Storage Gauge -->
+        <div class="gauge-card">
+          <div class="gauge-header">
+            <span class="gauge-title">持久存储 (/var/app)</span>
+            <span class="brand-badge">26 MB</span>
+          </div>
+          <div class="gauge-val-big" id="sys-storage-pct">--%</div>
+          <div class="progress-container">
+            <div class="progress-bar" id="sys-storage-bar" style="width: 0%;"></div>
+          </div>
+          <div class="gauge-subtext">
+            <span id="sys-storage-detail">-- / 26 MB</span>
+            <span id="sys-storage-free" style="color: var(--success);">-- MB 可用</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Wi-Fi Status Cards -->
+      <div class="grid" style="margin-bottom: 20px;">
+        <div class="wifi-card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="wifi-badge-ax">Wi-Fi 6</span>
+              <span style="font-weight: 600; font-size: 15px;">5 GHz 无线 (wlan1)</span>
+            </div>
+            <span class="status-badge online" style="font-size: 11px; padding: 2px 8px;">开启</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">SSID</span>
+            <span class="metric-val" id="wifi5-ssid" style="font-weight: 600;">CMCC-2C3G-5G</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">信道 / 频宽</span>
+            <span class="metric-val" id="wifi5-ch">36 / 160 MHz</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">协议模式</span>
+            <span class="metric-val" style="color: #7c3aed; font-weight: 500;">802.11ax (2402 Mbps)</span>
+          </div>
+        </div>
+
+        <div class="wifi-card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="wifi-badge-n">Wi-Fi 4</span>
+              <span style="font-weight: 600; font-size: 15px;">2.4 GHz 无线 (wlan0)</span>
+            </div>
+            <span class="status-badge online" style="font-size: 11px; padding: 2px 8px;">开启</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">SSID</span>
+            <span class="metric-val" id="wifi2-ssid" style="font-weight: 600;">CMCC-2C3G</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">信道 / 频宽</span>
+            <span class="metric-val" id="wifi2-ch">6 / 40 MHz</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">协议模式</span>
+            <span class="metric-val" style="color: #0284c7; font-weight: 500;">802.11n (574 Mbps)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- System & Network Detail Grid -->
+      <div class="grid">
+        <div class="card">
+          <div class="card-title">系统信息</div>
+          <div class="metric-row">
+            <span class="metric-label">设备型号</span>
+            <span class="metric-val">MR3000D-CIq (MIPS)</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">内核版本</span>
+            <span class="metric-val" id="sys-kernel">5.10.70</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">运行时间</span>
+            <span class="metric-val" id="sys-uptime">--</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">内网地址</span>
+            <span class="metric-val" id="sys-lan-ip">192.168.10.1</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">在线终端</span>
+            <span class="metric-val" id="sys-lan-clients" style="font-weight: 600; color: var(--primary);">-- 台</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">网络与服务</div>
+          <div class="metric-row">
+            <span class="metric-label">WAN IP</span>
+            <span class="metric-val" id="sys-wan-ip" style="font-weight: 600;">--</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">硬件加速</span>
+            <span class="metric-val"><span class="brand-badge" style="background:#ecfdf5;color:#065f46;border-color:#a7f3d0;font-weight:700;">HWNAT: ON</span></span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">SSH 终端</span>
+            <span class="metric-val" id="status-ssh">监听 :22</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">计划任务</span>
+            <span class="metric-val" id="status-crond">运行中</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">Python 3</span>
+            <span class="metric-val" id="status-python">未安装</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 2: Runtime Environment & Python -->
+    <section id="tab-runtime" class="tab-content">
+      <div class="card" style="margin-bottom: 20px;">
+        <div class="card-title">嵌入式运行库与软件仓库 (Entware & OPKG)</div>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
+          通过补齐 Entware 标准运行时，无需重刷整包固件即可直接在路由器上获取超过 2,500 个原生编译的 MIPS 软件包。
+        </p>
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+          <button class="btn btn-primary" onclick="installEntware(this)">
+            一键部署 Entware (OPKG)
+          </button>
+          <button class="btn btn-secondary" onclick="installPython(this)">
+            一键安装 Python 3 Runtime (Lightweight)
+          </button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">常用工具快速安装</div>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
+          点击即可由后台自动调用 <code>opkg install</code> 进行安装扩展：
+        </p>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <button class="btn btn-secondary btn-sm" onclick="installPkg(this, 'nano')">文本编辑 (nano)</button>
+          <button class="btn btn-secondary btn-sm" onclick="installPkg(this, 'htop')">性能监控 (htop)</button>
+          <button class="btn btn-secondary btn-sm" onclick="installPkg(this, 'iperf3')">测速压测 (iperf3)</button>
+          <button class="btn btn-secondary btn-sm" onclick="installPkg(this, 'tcpdump')">抓包诊断 (tcpdump)</button>
+          <button class="btn btn-secondary btn-sm" onclick="installPkg(this, 'bash')">完整 Bash Shell</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 3: Plugin Ecosystem Center -->
+    <section id="tab-plugins" class="tab-content">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3 style="font-size: 16px; font-weight: 600;">已挂载应用插件</h3>
+        <button class="btn btn-secondary btn-sm" onclick="refreshPlugins()">刷新列表</button>
+      </div>
+      <div id="plugin-list-container">
+        <!-- Dynamically rendered by app.js -->
+      </div>
+    </section>
+
+
+    <!-- Tab 5: AdBlock DNS -->
+    <section id="tab-adblock" class="tab-content">
+      <div class="card">
+        <div class="card-title">DNS 自定义与去广告规则</div>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+          在此配置自定义 Hosts 映射或 Dnsmasq 拦截规则，每行一条（格式：<code>IP 域名</code> 或 <code>address=/domain/IP</code>）：
+        </p>
+        <textarea id="adblock-rules-editor" class="code-editor" rows="10" placeholder="0.0.0.0 ad.example.com&#10;192.168.1.50 nas.local"></textarea>
+        <div style="margin-top: 12px; display: flex; gap: 10px;">
+          <button class="btn btn-primary" onclick="saveAdblockRules(this)">应用规则</button>
+          <button class="btn btn-secondary" onclick="loadAdblockRules()">重新加载</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 6: Custom UserScript -->
+    <section id="tab-userscript" class="tab-content">
+      <div class="card">
+        <div class="card-title">开机自启 Shell 脚本</div>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+          自定义命令将在开机和网络就绪后由系统自动在后台执行：
+        </p>
+        <textarea id="userscript-editor" class="code-editor" rows="12" placeholder="#!/bin/sh&#10;# 在此编写您的自定义 Shell 命令&#10;echo 'Hello Ripple-mod' > /tmp/hello.txt"></textarea>
+        <div style="margin-top: 12px; display: flex; gap: 10px;">
+          <button class="btn btn-primary" onclick="saveUserScript(this)">保存脚本</button>
+          <button class="btn btn-secondary" onclick="runUserScriptNow(this)">立即试运行</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 7: Real-time Logs -->
+    <section id="tab-logs" class="tab-content">
+      <div class="card">
+        <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
+          <span>系统与插件运行日志</span>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-secondary btn-sm" onclick="toggleLogAutoRefresh()" id="btn-toggle-log">暂停轮询</button>
+            <button class="btn btn-secondary btn-sm" onclick="fetchLiveLogs()">立即刷新</button>
+          </div>
+        </div>
+        <pre id="live-log-viewer" class="log-viewer">加载日志中...</pre>
+      </div>
+    </section>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container"></div>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

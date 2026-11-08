@@ -1,0 +1,9 @@
+{
+  "id": "custom_userscript",
+  "name": "用户自定义脚本与自动化",
+  "version": "1.1.0",
+  "description": "提供开机自启动自定义 Shell 脚本与 Cron 周期计划任务编排能力。",
+  "author": "Ripple-mod Community",
+  "autostart": true,
+  "icon": "terminal"
+}
