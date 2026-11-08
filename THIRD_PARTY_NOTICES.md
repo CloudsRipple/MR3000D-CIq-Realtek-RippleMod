@@ -1,11 +1,13 @@
-# Third-party components
+# Third-party notices
 
 The MIT license in `LICENSE` covers the original code in this repository only.
+Bundled third-party binaries keep their own licenses:
 
-| Component | Location | License |
-| --- | --- | --- |
-| BusyBox | `bin/busybox_mips` | GPL-2.0 — source: https://busybox.net/downloads/ |
-| Dropbear | `bin/dropbearmulti` | MIT-style — https://matt.ucc.asn.au/dropbear/ |
+| Component | Path | License | Source |
+| --- | --- | --- | --- |
+| BusyBox 1.36.1 (MIPS BE static build) | `bin/busybox_mips` | GPL-2.0 | https://busybox.net/ |
+| Dropbear 2024.86 (MIPS BE static build) | `bin/dropbearmulti` | MIT-style | https://matt.ucc.asn.au/dropbear/ |
 
-The firmware image in Releases is derived from the vendor's original (CMCC) firmware.
-That vendor code is **not** covered by the MIT license and remains the property of its owners.
+The firmware images in Releases are derived from the vendor's original firmware
+for the CMCC MR3000D-CIq and remain subject to the vendor's rights. They are
+provided for personal learning and research only.

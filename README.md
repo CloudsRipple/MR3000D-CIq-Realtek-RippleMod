@@ -35,3 +35,7 @@ CMCC MR3000D-CIq（Realtek RTL8198D）的轻量插件引擎与 Web 控制台。
 ```bash
 python3 tools/build_firmware.py --rootfs <原厂rootfs目录> --backup-dir <原厂备份目录>
 ```
+
+## 许可证
+
+自有代码使用 [MIT](LICENSE)。内置的 BusyBox（GPL-2.0）、Dropbear 等第三方组件见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
