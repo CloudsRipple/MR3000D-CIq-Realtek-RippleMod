@@ -486,7 +486,7 @@
       <!-- Wi-Fi Power Hint Card -->
       <div class="card" style="margin-bottom: 16px; background: #f8fafc; border-left: 4px solid var(--primary); padding: 14px 18px;">
         <div style="display: flex; align-items: center; gap: 12px;">
-          <span style="font-size: 22px;">📶</span>
+          
           <div>
             <div style="font-weight: 600; font-size: 14px;">双频无线发射与射频功率控制</div>
             <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
@@ -518,10 +518,10 @@
             <div style="margin-bottom: 14px;">
               <label class="form-label">信号发射功率</label>
               <select id="wifi-power-2g" class="form-input">
-                <option value="0">🚀 穿墙模式 (100% 满功率 / 超强覆盖)</option>
-                <option value="1">⚖️ 标准模式 (70% 功率 / 均衡推荐)</option>
-                <option value="2">🌱 节能模式 (50% 功率 / 绿色低辐射)</option>
-                <option value="3">💤 微功率模式 (35% 功率 / 宿舍低辐射)</option>
+                <option value="0">穿墙模式 (100% 满功率)</option>
+                <option value="1">标准模式 (70%)</option>
+                <option value="2">节能模式 (50%)</option>
+                <option value="3">微功率模式 (35%)</option>
               </select>
             </div>
 
@@ -605,10 +605,10 @@
             <div style="margin-bottom: 14px;">
               <label class="form-label">信号发射功率</label>
               <select id="wifi-power-5g" class="form-input">
-                <option value="0">🚀 穿墙模式 (100% 满功率 / 超强覆盖)</option>
-                <option value="1">⚖️ 标准模式 (70% 功率 / 均衡推荐)</option>
-                <option value="2">🌱 节能模式 (50% 功率 / 绿色低辐射)</option>
-                <option value="3">💤 微功率模式 (35% 功率 / 宿舍低辐射)</option>
+                <option value="0">穿墙模式 (100% 满功率)</option>
+                <option value="1">标准模式 (70%)</option>
+                <option value="2">节能模式 (50%)</option>
+                <option value="3">微功率模式 (35%)</option>
               </select>
             </div>
 
@@ -721,14 +721,14 @@
       <!-- Plugin Installation Panel (Expandable) -->
       <div id="plugin-install-drawer" class="card" style="display: none; margin-bottom: 20px; border-color: var(--primary);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
-          <h4 style="font-size: 15px; font-weight: 600;">📦 安装或导入新插件</h4>
+          <h4 style="font-size: 15px; font-weight: 600;">安装或导入新插件</h4>
           <button class="btn btn-secondary btn-sm" onclick="togglePluginInstallDrawer()">关闭</button>
         </div>
 
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;">
           <!-- Option A: File Upload -->
           <div style="background: #f8fafc; padding: 14px; border-radius: 8px; border: 1px dashed var(--border);">
-            <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px;">📁 本地离线安装包</div>
+            <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px;">本地离线安装包</div>
             <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">选择打包好的标准插件压缩包 (.tar.gz 或 .tgz)：</p>
             <input type="file" id="plugin-upload-file" accept=".tar.gz,.tgz" style="font-size: 13px; margin-bottom: 10px; width: 100%;">
             <button class="btn btn-primary btn-sm" onclick="uploadPluginFile(this)" style="width: 100%;">上传并执行安装</button>
@@ -736,7 +736,7 @@
 
           <!-- Option B: URL Download -->
           <div style="background: #f8fafc; padding: 14px; border-radius: 8px; border: 1px dashed var(--border);">
-            <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px;">🌐 网络 URL 一键安装</div>
+            <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px;">网络 URL 一键安装</div>
             <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">输入插件包直链地址由路由器后台直接下载：</p>
             <input type="url" id="plugin-url-input" class="form-input" placeholder="http://.../my_plugin.tar.gz" style="font-size: 13px; margin-bottom: 10px;">
             <button class="btn btn-secondary btn-sm" onclick="installPluginFromUrl(this)" style="width: 100%;">远程拉取并安装</button>
@@ -909,7 +909,7 @@
     <!-- Reboot Confirmation Modal -->
     <div id="modal-reboot" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
       <div class="card" style="max-width: 400px; width: 90%; text-align: center; padding: 28px 24px;">
-        <div style="font-size: 40px; margin-bottom: 12px;">🔄</div>
+        <div style="font-size: 16px; margin-bottom: 12px; font-weight: 600;">系统处理中</div>
         <h3 style="font-size: 18px; margin-bottom: 10px;">确认重启路由器？</h3>
         <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 20px;">
           重启过程大约需要 50~60 秒，期间网络连接将短暂中断。
