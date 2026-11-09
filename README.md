@@ -58,7 +58,7 @@
 
 ### 推荐方法：电脑端一键全自动刷入
 
-1. 从 [Releases 最新发布页面](https://github.com/CloudsRipple/MR3000D-CIq-Realtek-RippleMod/releases/latest) 下载 **`MR3000D-CIq-RippleMod-v0.2.0-OneClick-Flashing-Kit.zip`** 并解压。
+1. 从 [Releases 最新发布页面](https://github.com/CloudsRipple/MR3000D-CIq-Realtek-RippleMod/releases/latest) 下载 **`MR3000D-CIq-RippleMod-v0.2.1-OneClick-Flashing-Kit.zip`** 并解压。
 2. 用网线将电脑连接至路由器的任意 LAN 口（确保电脑获取到 `192.168.10.x` 网段 IP，浏览器能打开原厂 `http://192.168.10.1/` 登录页）。
 3. 运行刷机程序：
    - **Windows 用户**：直接双击包内的 `flash.bat`。
