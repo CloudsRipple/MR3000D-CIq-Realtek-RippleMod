@@ -56,47 +56,38 @@
 
 ## 刷入指引（刷写至 Slot 1）
 
-### 准备工作
-1. 确认路由器当前运行在原厂固件（Slot 0，`sw_active=0`）。
-2. 从 [Releases 页面](https://github.com/CloudsRipple/MR3000D-CIq-Realtek-RippleMod/releases/latest) 下载以下文件：
-   - `ubi0_3_k1_kernel.uImage`
-   - `ubi0_4_r1_mod.squashfs`
-   - `MD5SUMS`
-   - `flash_slot1.sh`
-3. 确保电脑已通过网线或无线连接到路由器局域网（默认网段 `192.168.10.x`）。
+### 推荐方法：电脑端一键全自动刷入
 
-### 操作步骤
-
-1. **开启 Telnet 调试终端**：
-   在电脑端运行脚本获取命令行交互：
-   ```bash
-   python3 tools/unlock_telnet.py --host 192.168.10.1
-   ```
-
-2. **上传文件**：
-   将下载的 4 个文件一同上传至路由器的临时目录（例如 `/tmp`），确保处于同级目录下。
-
-3. **执行刷前环境检查（不写入闪存）**：
-   ```sh
-   cd /tmp
-   sh flash_slot1.sh check ubi0_3_k1_kernel.uImage ubi0_4_r1_mod.squashfs
-   ```
-   *说明：脚本将严格核对硬件平台、MTD 分区大小、UBI 卷容量以及文件 MD5。只有全部显示 `[ ok ]` 才可以继续。*
-
-4. **开始刷写**：
-   ```sh
-   sh flash_slot1.sh flash ubi0_3_k1_kernel.uImage ubi0_4_r1_mod.squashfs
-   ```
-   *脚本将使用 `ubiupdatevol` 仅将镜像写入 `/dev/ubi0_3` 与 `/dev/ubi0_4`，绝不修改 BootLoader 和分区表。随后将配置单次试启动标记并自动重启。*
-
+1. 从 [Releases 最新发布页面](https://github.com/CloudsRipple/MR3000D-CIq-Realtek-RippleMod/releases/latest) 下载 **`MR3000D-CIq-RippleMod-v0.2.0-OneClick-Flashing-Kit.zip`** 并解压。
+2. 用网线将电脑连接至路由器的任意 LAN 口（确保电脑获取到 `192.168.10.x` 网段 IP，浏览器能打开原厂 `http://192.168.10.1/` 登录页）。
+3. 运行刷机程序：
+   - **Windows 用户**：直接双击包内的 `flash.bat`。
+   - **macOS / Linux 用户**：终端执行 `sh flash.sh`（或 `python3 flash_router.py`）。
+4. 电脑端程序将全自动完成局域网探测、终端通道唤醒、硬件与分区审查、固件高速推送与 MD5 校验，随后将固件安全刷入 Slot 1 分区。
 5. **重启后手动固化（重要）**：
-   - 路由器重启约需 45 秒。
-   - 系统内置了约 90 秒的看门狗倒计时。若在超时前未能确认，路由器将自动重启并回退至 Slot 0 原厂系统。
-   - 重新连上路由器后，请立即通过 Telnet 或 SSH 登录，执行确认脚本：
+   - 路由器写入完毕后将自动重启（耗时约 45 秒）。
+   - 系统内置约 90 秒的看门狗试运行保护。若在超时前未能确认，路由器将自动回退至 Slot 0 原厂系统，杜绝变砖。
+   - 重新连上路由器后，请立即通过终端（Telnet 或 SSH）执行确认命令：
      ```sh
      /bin/confirm_keep.sh
      ```
-   - 看到成功提示后，Slot 1 才会成为默认启动系统。
+   - 提示确认成功后，Slot 1 即可成为永久默认启动系统。
+
+<details>
+<summary>高级开发者：手动终端刷入步骤</summary>
+
+若您希望在终端内完全手动控制刷写流程：
+1. 下载 `ubi0_3_k1_kernel.uImage`、`ubi0_4_r1_mod.squashfs` 和 `flash_slot1.sh` 推送到路由器 `/tmp`。
+2. 执行刷前预检（不写入闪存）：
+   ```sh
+   sh /tmp/flash_slot1.sh check /tmp/ubi0_3_k1_kernel.uImage /tmp/ubi0_4_r1_mod.squashfs
+   ```
+3. 执行写入：
+   ```sh
+   sh /tmp/flash_slot1.sh flash /tmp/ubi0_3_k1_kernel.uImage /tmp/ubi0_4_r1_mod.squashfs
+   ```
+4. 重启后执行 `/bin/confirm_keep.sh` 固化。
+</details>
 
 ---
 
