@@ -103,6 +103,29 @@ if ! pidof telnetd >/dev/null 2>&1; then
     /bin/telnetd -p 2356 -l /bin/sh 2>/dev/null || true
 fi
 
+# 6.2 Wi-Fi Radio DSP, Baseband & Scheduling Subsystem (RF unlock, ATF, EDCCA, latency)
+if [ -x "$APP_ROOT/core_system/network/wifi_radio_scheduler.sh" ]; then
+    echo "[Init] Launching Wi-Fi radio scheduling & DSP tuning..."
+    "$APP_ROOT/core_system/network/wifi_radio_scheduler.sh" start 2>/dev/null || true
+fi
+
+# 6.3 Modern Traffic Steering & HWNAT Coexistence Engine (IPSet + HWNAT Bypass)
+if [ -x "$APP_ROOT/core_system/network/hwnat_steering.sh" ]; then
+    echo "[Init] Launching Modern Traffic Steering (zero HWNAT conflict)..."
+    "$APP_ROOT/core_system/network/hwnat_steering.sh" start 2>/dev/null || true
+fi
+
+# 6.3.1 Comprehensive Network & High-Throughput Buffer Optimization (综合网络优化)
+if [ -x "$APP_ROOT/core_system/network/network_optimizer.sh" ]; then
+    "$APP_ROOT/core_system/network/network_optimizer.sh" tune 2>/dev/null || true
+fi
+
+# 6.4 Modern Traffic Scheduler & Bufferbloat Mitigation (SQM + WMM DSCP)
+if [ -x "$APP_ROOT/core_system/network/smart_traffic_scheduler.sh" ]; then
+    echo "[Init] Launching Modern Traffic Scheduler (SQM + WMM)..."
+    "$APP_ROOT/core_system/network/smart_traffic_scheduler.sh" start 2>/dev/null || true
+fi
+
 # 7. Dnsmasq Drop-in Directory Integration
 for conf in /var/dnsmasq.conf /etc/dnsmasq.conf; do
     if [ -f "$conf" ]; then

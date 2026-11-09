@@ -6,7 +6,7 @@
 # 1. 自动定位局域网直连物理网卡 (避开 Clash / Surge TUN 虚拟网卡);
 # 2. 从路由器现有配置中无缝提取并继承当前认证账号密码与防检测规则;
 # 3. 本地自动打包 Ripple-mod 纯净套件 (核心库、通用插件引擎、全功能 Web 控制台);
-# 4. 高速推送到路由器 /var/app/ 分区并彻底清理原厂 原厂 专有残留;
+# 4. 高速推送到路由器 /var/app/ 分区并彻底清理原厂 CMCC 专有残留;
 # 5. 自动激活内核硬件 NAT 加速 (HWNAT)、配置软链接与开机引导钩子;
 # 6. 免重启路由器，秒级完成热更新并保持外网在线。
 # ==============================================================================
@@ -76,13 +76,13 @@ bundle_tar = sys.argv[1]
 print("[4/6] 正在高速推送 Ripple-mod 套件到路由器 /var/app (TCP 直连)...")
 deploy_system.push_file_to_router(session, bundle_tar, "/tmp/ripple_mod_bundle.tar.gz", port=9999, timeout=60)
 
-print("[5/6] 正在解压套件并清理旧版 原厂 移动私有残留与多余缓存...")
+print("[5/6] 正在解压套件并清理旧版 CMCC 移动私有残留与多余缓存...")
 session.run_cmd("rm -rf /var/app/cmcc_netplug /var/app/cmcc_sec2Router /var/app/scripts /var/app/web/mod_control.html /var/app/web/mod_driver.html /var/app/web/mod_dualwan.html /var/app/web/geek_os.html /var/app/web/mod_plugins.html 2>/dev/null || true")
 session.run_cmd("tar -xzf /tmp/ripple_mod_bundle.tar.gz -C /var/app/")
 session.run_cmd("rm -f /tmp/ripple_mod_bundle.tar.gz")
 
 print("[6/6] 配置执行权限并执行 Ripple-mod 核心引导 (user.sh)...")
-session.run_cmd("chmod +x /var/app/bin/* /var/app/core_system/init.d/*.sh /var/app/core_system/runtime/*.sh /var/app/plugin_engine/*.sh /var/app/plugins/*/*.sh /var/app/plugins/*/scripts/*.sh /var/app/web/*.cgi /var/app/web/cgi-bin/*.cgi 2>/dev/null || true")
+session.run_cmd("chmod +x /var/app/bin/* /var/app/core_system/init.d/*.sh /var/app/core_system/network/*.sh /var/app/core_system/runtime/*.sh /var/app/plugin_engine/*.sh /var/app/plugins/*/*.sh /var/app/plugins/*/scripts/*.sh /var/app/web/*.cgi /var/app/web/cgi-bin/*.cgi 2>/dev/null || true")
 session.run_cmd("sh /var/app/core_system/init.d/user.sh")
 
 print("  * 正在热挂载全新 Ripple-mod 控制台到 Web 根目录...")

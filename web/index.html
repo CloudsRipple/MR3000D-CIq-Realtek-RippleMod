@@ -696,7 +696,7 @@
           <thead>
             <tr>
               <th>IP 地址</th>
-              <th>MAC 硬件地址</th>
+              <th>MAC 硬件地址 / 厂商</th>
               <th>设备标识 / 主机名</th>
               <th>接口类型</th>
               <th>状态</th>
@@ -707,6 +707,18 @@
             <tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 20px;">正在加载在线终端列表...</td></tr>
           </tbody>
         </table>
+      </div>
+
+      <!-- Wake-on-LAN Sender Card -->
+      <div class="card" style="margin-top: 20px;">
+        <div class="card-title">局域网唤醒 (Wake-on-LAN)</div>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 14px;">
+          由路由器直接向内网广播标准 Magic Packet 唤醒已配置网卡唤醒的主机/电脑（标准 WOL 协议）。
+        </p>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+          <input type="text" id="manual-wol-mac" class="form-input" style="max-width: 280px;" placeholder="目标电脑 MAC，如 AA:BB:CC:DD:EE:FF">
+          <button class="btn btn-primary" onclick="sendManualWol()">发送唤醒魔术包 (WOL)</button>
+        </div>
       </div>
     </section>
 

@@ -7,6 +7,29 @@ let isLogAutoRefresh = true;
 let logPollTimer = null;
 let currentHwnatState = true;
 
+// OUI Vendor Mapping Dictionary
+const OUI_VENDORS = {
+  'fc:e9:98': 'Apple', 'ac:bc:32': 'Apple', 'a4:83:e7': 'Apple', '3c:06:30': 'Apple', '70:35:60': 'Apple',
+  '14:7d:da': 'Apple', '80:4e:81': 'Apple', 'bc:d0:74': 'Apple', 'f0:18:98': 'Apple', 'a8:5c:2c': 'Apple',
+  'b8:78:2e': 'Apple', '38:f9:d3': 'Apple', 'e0:d0:83': 'Apple', '90:9c:4a': 'Apple',
+  '50:d2:f5': '小米/Redmi', '64:90:c1': '小米/Redmi', '78:11:dc': '小米/Redmi', '98:fa:9b': '小米/Redmi',
+  '28:6c:07': '小米/Redmi', '34:80:0d': '小米/Redmi', '68:ab:bc': '小米/Redmi',
+  'b4:0e:de': '华为/荣耀', 'dc:72:9b': '华为/荣耀', '44:6e:2e': '华为/荣耀', '00:e0:fc': '华为',
+  '78:d7:52': '华为/荣耀', '90:2b:d2': '华为/荣耀',
+  '08:00:27': 'VirtualBox', '00:0c:29': 'VMware', '00:50:56': 'VMware',
+  '00:1a:2b': 'TP-Link', '50:3a:a0': 'TP-Link', 'ec:08:6b': 'TP-Link', '74:05:a5': 'TP-Link',
+  '90:2b:34': 'Realtek', '00:e0:4c': 'Realtek', '54:ef:44': 'Realtek',
+  '34:6f:24': 'Intel', 'a0:af:bd': 'Intel', '7c:b0:c2': 'Intel', '80:32:53': 'Dell',
+  '48:2a:e3': 'Samsung', '00:15:99': 'Samsung', 'ec:1f:72': 'OPPO', 'b0:e1:7e': 'vivo',
+  'f0:2f:4b': 'Sony', '70:66:55': 'Microsoft', '30:05:5c': 'Lenovo', '00:1b:21': 'Intel'
+};
+
+function getVendorName(mac) {
+  if (!mac) return '终端设备';
+  const prefix = mac.toLowerCase().split(':').slice(0, 3).join(':');
+  return OUI_VENDORS[prefix] || '标准终端';
+}
+
 // Toast Notification Engine
 function showToast(message, type = 'info') {
   const container = document.getElementById('toast-container');
@@ -561,11 +584,15 @@ async function loadClientList() {
       tbody.innerHTML = res.clients.map(c => `
         <tr>
           <td style="font-weight: 600; color: var(--primary);">${c.ip}</td>
-          <td><code style="font-size: 12px;">${c.mac}</code></td>
+          <td>
+            <code style="font-size: 12px;">${c.mac}</code>
+            <span class="brand-badge" style="margin-left: 6px; font-size: 11px;">${getVendorName(c.mac)}</span>
+          </td>
           <td>${c.hostname || '局域网设备'}</td>
           <td><span class="brand-badge">${c.interface || 'br0'}</span></td>
           <td><span class="status-badge online" style="font-size: 11px;">在线</span></td>
-          <td>
+          <td style="display: flex; gap: 6px;">
+            <button class="btn btn-secondary btn-sm" onclick="sendWol('${c.mac}')">唤醒 (WOL)</button>
             <button class="btn btn-secondary btn-sm" onclick="pingClient('${c.ip}')">Ping</button>
           </td>
         </tr>
@@ -574,6 +601,30 @@ async function loadClientList() {
   } catch (err) {
     tbody.innerHTML = `<tr><td colspan="6" style="color: var(--danger); padding: 14px;">加载终端列表失败: ${err.message}</td></tr>`;
   }
+}
+
+// WOL Wake-on-LAN Handlers
+async function sendWol(mac) {
+  try {
+    showToast(`正在向 ${mac} 发送 WOL 魔术包...`, 'info');
+    const res = await apiCall(API_BASE, { action: 'wol_send', mac: mac });
+    if (res.status === 0) {
+      showToast(res.message || 'WOL 唤醒包已成功广播！', 'success');
+    } else {
+      showToast(res.error || 'WOL 发送失败', 'danger');
+    }
+  } catch (e) {
+    showToast('WOL 请求异常: ' + e.message, 'danger');
+  }
+}
+
+async function sendManualWol() {
+  const input = document.getElementById('manual-wol-mac');
+  if (!input || !input.value.trim()) {
+    showToast('请输入要唤醒的目标电脑 MAC 地址', 'warning');
+    return;
+  }
+  await sendWol(input.value.trim());
 }
 
 function pingClient(ip) {

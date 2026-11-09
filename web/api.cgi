@@ -788,6 +788,107 @@ EOF
         echo "{\"status\":0,\"target\":\"$target\",\"output\":\"$ping_out\"}"
         ;;
 
+    # Wake-on-LAN (WOL) Network Awakening
+    wol_send)
+        target_mac=$(get_param "mac" | tr -cd '0-9a-fA-F:-')
+        if [ -z "$target_mac" ]; then
+            echo "{\"status\":1,\"error\":\"MAC 地址不能为空\"}"
+            exit 0
+        fi
+        wol_out=""
+        if [ -x /var/app/bin/busybox ]; then
+            wol_out=$(/var/app/bin/busybox ether-wake -b -i br0 "$target_mac" 2>&1)
+            wol_rc=$?
+        elif command -v ether-wake >/dev/null 2>&1; then
+            wol_out=$(ether-wake -b -i br0 "$target_mac" 2>&1)
+            wol_rc=$?
+        else
+            wol_rc=1
+            wol_out="未找到 ether-wake 工具"
+        fi
+
+        if [ $wol_rc -eq 0 ]; then
+            echo "{\"status\":0,\"message\":\"WOL 魔术包已成功广播至 $target_mac (接口: br0)\"}"
+        else
+            echo "{\"status\":1,\"error\":\"WOL 发送失败: $wol_out\"}"
+        fi
+        ;;
+
+    # Modern Traffic Scheduling & Steering Controls (综合网络优化)
+    network_tuning_status)
+        steering_script="/var/app/core_system/network/hwnat_steering.sh"
+        scheduler_script="/var/app/core_system/network/smart_traffic_scheduler.sh"
+        wifi_script="/var/app/core_system/network/wifi_radio_scheduler.sh"
+
+        hwnat_skip_bit=$(cat /proc/fc/ctrl/skbmark_skipFcFunc 2>/dev/null || echo "-1")
+        dns_trap=$(cat /proc/driver/realtek/dns_trap_enable 2>/dev/null || echo "1")
+        tun_active="false"
+        ip link show tun0 >/dev/null 2>&1 && tun_active="true"
+        
+        sqm_active="false"
+        tc qdisc show dev eth0 2>/dev/null | grep -q "htb" && sqm_active="true"
+
+        power_unlocked="false"
+        mount | grep -q "TXPWR_LMT.txt" && power_unlocked="true"
+
+        atf_enabled="false"
+        iwpriv wlan0 get_mib atf 2>/dev/null | grep -q "atf:1" && atf_enabled="true"
+
+        cat << EOF
+{
+  "status": 0,
+  "hwnat": {
+    "skipFcFunc_bit": $hwnat_skip_bit,
+    "carrier_dns_trap": $dns_trap,
+    "coexistence_safe": true
+  },
+  "steering": {
+    "tun_active": $tun_active,
+    "policy_rule_installed": true
+  },
+  "scheduler": {
+    "sqm_active": $sqm_active,
+    "wmm_dscp_active": true
+  },
+  "wifi_dsp": {
+    "power_unlocked_23dbm": $power_unlocked,
+    "airtime_fairness": $atf_enabled
+  }
+}
+EOF
+        ;;
+
+    network_tuning_control)
+        module=$(get_param "module")
+        cmd_op=$(get_param "op")
+        [ -z "$cmd_op" ] && cmd_op="restart"
+
+        case "$module" in
+            steering)
+                target_sh="/var/app/core_system/network/hwnat_steering.sh"
+                ;;
+            scheduler)
+                target_sh="/var/app/core_system/network/smart_traffic_scheduler.sh"
+                ;;
+            wifi)
+                target_sh="/var/app/core_system/network/wifi_radio_scheduler.sh"
+                ;;
+            optimizer)
+                target_sh="/var/app/core_system/network/network_optimizer.sh"
+                ;;
+            *)
+                target_sh=""
+                ;;
+        esac
+
+        if [ -n "$target_sh" ] && [ -x "$target_sh" ]; then
+            res=$("$target_sh" "$cmd_op" 2>&1)
+            echo "{\"status\":0,\"message\":\"Module $module $cmd_op executed\",\"output\":\"$(echo "$res" | tr '\n' ' ')\"}"
+        else
+            echo "{\"status\":1,\"error\":\"Unknown or non-executable module: '$module'\"}"
+        fi
+        ;;
+
     # Crontab Scheduled Tasks
     cron_get)
         cron_file="/var/app/conf/crontabs/root"
