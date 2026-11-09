@@ -159,7 +159,9 @@ async function refreshSysInfo() {
     if (res.status === 0 && res.system) {
       const s = res.system;
 
-      // Kernel & Hostname
+      // Version, Kernel & Hostname
+      const elVer = document.getElementById('sys-version');
+      if (elVer) elVer.textContent = s.version || 'v0.2.1';
       const elKernel = document.getElementById('sys-kernel');
       if (elKernel) elKernel.textContent = s.kernel || 'Linux 5.10.70';
 
