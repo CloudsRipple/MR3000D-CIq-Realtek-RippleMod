@@ -139,6 +139,16 @@ class TelnetClient:
         return buf.decode("utf-8", errors="ignore")
 
     def run_cmd(self, cmd_str, timeout=30):
+        # 清理此前残留在 Socket 接收缓冲区的旧命令回显与后台任务提示
+        if self.sock:
+            self.sock.setblocking(False)
+            try:
+                while self.sock.recv(4096):
+                    pass
+            except Exception:
+                pass
+            self.sock.setblocking(True)
+
         cmd_str = cmd_str.strip()
         self.sock.sendall(cmd_str.encode("utf-8") + b"\n")
         raw = self._read_until(b"# ", timeout=timeout)
@@ -209,8 +219,8 @@ def push_file_fast(session, local_path, remote_path, local_ip, port=9999, timeou
     log(f"正在推送: {filename} ({filesize / 1024 / 1024:.2f} MB)...")
 
     # 在路由器端开启轻量 nc 监听接收
-    session.run_cmd(f"rm -f {remote_path}; killall nc 2>/dev/null || true")
-    session.sock.sendall(f"nc -l -p {port} > {remote_path} &\n".encode("utf-8"))
+    session.run_cmd(f"rm -f {remote_path}; killall nc 2>/dev/null; sleep 0.2")
+    session.run_cmd(f"nc -l -p {port} > {remote_path} &")
     time.sleep(0.5)
 
     # 电脑端直连并极速推流
@@ -234,10 +244,17 @@ def push_file_fast(session, local_path, remote_path, local_ip, port=9999, timeou
     speed = (sent / 1024 / 1024) / cost
     ok(f"{filename} 传输完成 (耗时: {cost:.2f} 秒, 平均速率: {speed:.1f} MB/s)")
 
-    # 验证路由器端接收体积与 MD5
-    remote_size = session.run_cmd(f"ls -l {remote_path} 2>/dev/null | awk '{{print $5}}'")
-    if str(filesize) not in remote_size:
-        fail(f"文件大小校验不一致！本地: {filesize}, 路由器端: {remote_size}")
+    # 稍等片刻让路由器端 nc 进程完成文件落盘
+    time.sleep(0.4)
+
+    # 验证路由器端接收体积
+    out = session.run_cmd(f"wc -c < {remote_path} 2>/dev/null")
+    nums = [int(s) for s in out.split() if s.isdigit()]
+    if not nums or filesize not in nums:
+        out_ls = session.run_cmd(f"ls -l {remote_path} 2>/dev/null")
+        nums = [int(s) for s in out_ls.split() if s.isdigit()]
+        if not nums or filesize not in nums:
+            fail(f"文件大小校验不一致！本地: {filesize}, 路由器端: {out} ({out_ls})")
 
 
 def main():
