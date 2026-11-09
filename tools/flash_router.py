@@ -22,7 +22,9 @@ import time
 import socket
 import select
 import hashlib
+import platform
 import argparse
+import traceback
 import subprocess
 import http.client
 
@@ -34,21 +36,117 @@ KERNEL_NAME = "ubi0_3_k1_kernel.uImage"
 ROOTFS_NAME = "ubi0_4_r1_mod.squashfs"
 FLASHER_NAME = "flash_slot1.sh"
 
+COMM_LOGS = []
+
+
+def record_log(level, msg):
+    ts = time.strftime("%Y-%m-%d %H:%M:%S")
+    COMM_LOGS.append(f"[{ts}] [{level}] {msg}")
+
 
 def log(msg):
+    record_log("INFO", msg)
     print(f"[*] {msg}")
 
 
 def ok(msg):
+    record_log("OK", msg)
     print(f"[+] {msg}")
 
 
 def warn(msg):
+    record_log("WARN", msg)
     print(f"[!] {msg}")
 
 
-def fail(msg):
-    print(f"[-] 错误: {msg}")
+def get_desktop_dir():
+    candidates = []
+    if sys.platform == "win32":
+        up = os.environ.get("USERPROFILE", "")
+        if up:
+            candidates.extend([
+                os.path.join(up, "Desktop"),
+                os.path.join(up, "桌面"),
+                os.path.join(up, "OneDrive", "Desktop"),
+                os.path.join(up, "OneDrive", "桌面")
+            ])
+    else:
+        home = os.path.expanduser("~")
+        candidates.extend([
+            os.path.join(home, "Desktop"),
+            os.path.join(home, "桌面")
+        ])
+    for c in candidates:
+        if os.path.isdir(c):
+            return c
+    return None
+
+
+def fail(msg, exc=None):
+    record_log("FATAL", msg)
+    print(f"\n[-] 错误: {msg}")
+
+    print("\n" + "=" * 70)
+    print("           [!] 刷机排错调试信息回显 (Debug Verbose Dump)")
+    print("=" * 70)
+
+    if exc:
+        print("\n--- 异常调用栈 (Traceback) ---")
+        traceback.print_exc()
+
+    print("\n--- 最近终端与网络交互历史 (Last 25 Events) ---")
+    recent = COMM_LOGS[-25:]
+    for r in recent:
+        print(f"  {r}")
+
+    # 生成完整诊断日志
+    dump_text = []
+    dump_text.append("=" * 70)
+    dump_text.append("MR3000D-CIq RippleMod 刷机工具错误诊断日志")
+    dump_text.append(f"生成时间: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+    dump_text.append(f"操作系统: {platform.platform()} ({sys.platform})")
+    dump_text.append(f"Python 版本: {sys.version}")
+    dump_text.append("=" * 70 + "\n")
+
+    if exc:
+        dump_text.append("--- 异常堆栈信息 ---")
+        dump_text.append(traceback.format_exc())
+        dump_text.append("")
+
+    dump_text.append("--- 全量交互记录 (Full Transcript) ---")
+    dump_text.extend(COMM_LOGS)
+    full_content = "\n".join(dump_text)
+
+    log_filename = f"flash_debug_{time.strftime('%Y%m%d_%H%M%S')}.log"
+    local_log_path = os.path.join(SCRIPT_DIR, log_filename)
+    fixed_local_path = os.path.join(SCRIPT_DIR, "flash_debug.log")
+
+    saved_paths = []
+    try:
+        with open(local_log_path, "w", encoding="utf-8") as f:
+            f.write(full_content)
+        with open(fixed_local_path, "w", encoding="utf-8") as f:
+            f.write(full_content)
+        saved_paths.append(local_log_path)
+    except Exception as e:
+        print(f"[!] 写入当前目录日志失败: {e}")
+
+    desktop_dir = get_desktop_dir()
+    if desktop_dir:
+        desktop_log_path = os.path.join(desktop_dir, "MR3000D_刷机排错日志.txt")
+        try:
+            with open(desktop_log_path, "w", encoding="utf-8") as f:
+                f.write(full_content)
+            saved_paths.append(desktop_log_path)
+        except Exception:
+            pass
+
+    print("\n" + "=" * 70)
+    print("详细排错日志已自动生成保存至：")
+    for sp in saved_paths:
+        print(f"  👉 {sp}")
+    print("\n如需协助，可直接将上述日志文件内容发送至论坛帖子或 GitHub Issue 反馈！")
+    print("=" * 70 + "\n")
     sys.exit(1)
 
 
@@ -143,15 +241,20 @@ class TelnetClient:
         if self.sock:
             self.sock.setblocking(False)
             try:
-                while self.sock.recv(4096):
-                    pass
+                flushed = b""
+                while chunk := self.sock.recv(4096):
+                    flushed += chunk
+                if flushed:
+                    record_log("SOCKET_DRAIN", repr(flushed.decode("utf-8", errors="ignore")))
             except Exception:
                 pass
             self.sock.setblocking(True)
 
         cmd_str = cmd_str.strip()
+        record_log("TELNET_TX", cmd_str)
         self.sock.sendall(cmd_str.encode("utf-8") + b"\n")
         raw = self._read_until(b"# ", timeout=timeout)
+        record_log("TELNET_RX", repr(raw))
         lines = raw.splitlines()
         out_lines = []
         for ln in lines:
@@ -343,4 +446,10 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n[!] 操作已由用户手动中断。")
+        sys.exit(0)
+    except Exception as e:
+        fail(f"程序运行发生未捕获异常: {e}", exc=e)
