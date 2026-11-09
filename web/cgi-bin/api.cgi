@@ -174,7 +174,7 @@ case "$action" in
   "status": 0,
   "system": {
     "hostname": "MR3000D-CIq",
-    "version": "v0.2.1",
+    "version": "v0.2.2",
     "kernel": "$kernel_str",
     "uptime_seconds": $uptime_sec,
     "cpu": {
