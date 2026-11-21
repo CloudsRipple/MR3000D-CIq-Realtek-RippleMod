@@ -8,9 +8,14 @@ export PATH="/var/app/bin:/var/app/opt/bin:/var/app/opt/sbin:/opt/bin:/opt/sbin:
 export LD_LIBRARY_PATH="/var/app/lib:/var/app/opt/lib:/opt/lib:/lib:/usr/lib:$LD_LIBRARY_PATH"
 
 RAW_JSON_MODE=0
+RAW_JSON_FILE=""
 if [ "$1" = "--raw-json" ]; then
     RAW_JSON_MODE=1
     shift
+elif [ "$1" = "--raw-json-file" ]; then
+    RAW_JSON_MODE=1
+    RAW_JSON_FILE="$2"
+    shift 2
 fi
 
 # In standard CGI mode, output HTTP headers
@@ -27,16 +32,32 @@ if [ $RAW_JSON_MODE -eq 0 ]; then
     fi
 fi
 
-DISPATCHER="/var/app/plugin_engine/api_dispatcher.sh"
-PLUGIN_MGR="/var/app/plugin_engine/plugin_manager.sh"
+SCRIPT_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"
+APP_ROOT="${APP_ROOT:-/var/app}"
+DISPATCHER="${DISPATCHER:-$APP_ROOT/plugin_engine/api_dispatcher.sh}"
+PLUGIN_MGR="${PLUGIN_MGR:-$APP_ROOT/plugin_engine/plugin_manager.sh}"
 
-# Extract parameters from CLI argument or HTTP query
-if [ -n "$1" ]; then
+# Fallback to relative paths if not found at APP_ROOT
+if [ ! -f "$DISPATCHER" ] && [ -f "$SCRIPT_DIR/../plugin_engine/api_dispatcher.sh" ]; then
+    DISPATCHER="$SCRIPT_DIR/../plugin_engine/api_dispatcher.sh"
+fi
+if [ ! -f "$PLUGIN_MGR" ] && [ -f "$SCRIPT_DIR/../plugin_engine/plugin_manager.sh" ]; then
+    PLUGIN_MGR="$SCRIPT_DIR/../plugin_engine/plugin_manager.sh"
+fi
+
+# Extract parameters from file, CLI argument, or HTTP query/POST body
+if [ -n "$RAW_JSON_FILE" ] && [ -f "$RAW_JSON_FILE" ]; then
+    QUERY=$(cat "$RAW_JSON_FILE" 2>/dev/null || echo "")
+elif [ -n "$1" ]; then
     QUERY="$1"
 else
     QUERY="${QUERY_STRING:-}"
     if [ "$REQUEST_METHOD" = "POST" ]; then
-        read -r POST_DATA
+        if [ -n "$CONTENT_LENGTH" ] && [ "$CONTENT_LENGTH" -gt 0 ] 2>/dev/null; then
+            POST_DATA=$(dd bs=1 count="$CONTENT_LENGTH" 2>/dev/null)
+        else
+            POST_DATA=$(cat 2>/dev/null)
+        fi
         if [ -n "$POST_DATA" ]; then
             if [ -n "$QUERY" ]; then
                 QUERY="${QUERY}&${POST_DATA}"
@@ -47,15 +68,45 @@ else
     fi
 fi
 
-# Robust URL decode function
+# Robust JSON escaping helper
+json_escape() {
+    [ -z "$1" ] && return 0
+    printf '%s' "$1" | awk '{
+        gsub(/\\/, "\\\\");
+        gsub(/"/, "\\\"");
+        gsub(/\t/, "\\t");
+        gsub(/\r/, "");
+        if (NR > 1) { printf "\\\\n"; }
+        printf "%s", $0;
+    }'
+}
+
+# Safe URL decode function (no printf %b backslash mangling)
 urldecode() {
-    printf '%b' "$(printf '%s' "$1" | sed 's/+/ /g; s/%\([0-9a-fA-F][0-9a-fA-F]\)/\\x\1/g')"
+    printf '%s' "$1" | awk '
+    BEGIN { for (i = 0; i < 256; i++) hex[sprintf("%02X", i)] = sprintf("%c", i) }
+    {
+        gsub(/\+/, " ")
+        out = ""
+        s = $0
+        while (match(s, /%[0-9A-Fa-f][0-9A-Fa-f]/)) {
+            out = out substr(s, 1, RSTART - 1) hex[toupper(substr(s, RSTART + 1, 2))]
+            s = substr(s, RSTART + 3)
+        }
+        printf "%s%s", (NR > 1 ? "\n" : ""), out s
+    }'
+}
+
+get_param_raw() {
+    key="$1"
+    printf '%s\n' "$QUERY" | tr '&' '\n' | awk -v k="${key}=" '
+        index($0, k) == 1 { print substr($0, length(k) + 1); exit }
+    '
 }
 
 get_param() {
-    key="$1"
-    raw_val=$(printf '%s' "$QUERY" | tr '&' '\n' | grep "^${key}=" | head -n 1 | cut -d'=' -f2-)
-    urldecode "$raw_val"
+    raw_val=$(get_param_raw "$1")
+    [ -n "$raw_val" ] && urldecode "$raw_val"
 }
 
 action=$(get_param "action")
@@ -145,9 +196,9 @@ case "$action" in
         fi
 
         # Wi-Fi Status
-        wifi2_ssid=$(iwpriv wlan0 get_mib ssid 2>/dev/null | cut -d':' -f2 | tr -d '\r\n' || echo "MR3000D-2.4G")
+        wifi2_ssid=$(iwpriv wlan0 get_mib ssid 2>/dev/null | cut -d':' -f2 | tr -d '\r\n' || echo "CMCC-2C3G")
         wifi2_ch=$(iwpriv wlan0 get_mib channel 2>/dev/null | cut -d':' -f2 | tr -d '\r\n' || echo "6")
-        wifi5_ssid=$(iwpriv wlan1 get_mib ssid 2>/dev/null | cut -d':' -f2 | tr -d '\r\n' || echo "MR3000D-5G")
+        wifi5_ssid=$(iwpriv wlan1 get_mib ssid 2>/dev/null | cut -d':' -f2 | tr -d '\r\n' || echo "CMCC-2C3G-5G")
         wifi5_ch=$(iwpriv wlan1 get_mib channel 2>/dev/null | cut -d':' -f2 | tr -d '\r\n' || echo "36")
 
         w2_scale=$(flash get WLAN_RFPOWER_SCALE 2>/dev/null | cut -d'=' -f2-)
@@ -168,6 +219,16 @@ case "$action" in
         # Clean single-line kernel string
         kernel_str=$(head -n 1 /proc/version 2>/dev/null | cut -d' ' -f1-3 | tr -d '\r\n')
         [ -z "$kernel_str" ] && kernel_str="Linux 5.10.70"
+
+        # Traffic counters from /proc/net/dev (nas0 WAN / eth0.2)
+        dev_wan=$(grep -E "(nas0|eth0.2):" /proc/net/dev 2>/dev/null | head -n 1)
+        wan_rx=0; wan_tx=0
+        if [ -n "$dev_wan" ]; then
+            dev_wan_clean=$(echo "$dev_wan" | sed 's/.*://')
+            set -- $dev_wan_clean
+            wan_rx=${1:-0}
+            wan_tx=${9:-0}
+        fi
 
         cat << EOF
 {
@@ -199,7 +260,9 @@ case "$action" in
       "wan_ip": "$wan_ip",
       "lan_ip": "$lan_ip",
       "lan_clients": $lan_clients,
-      "hwnat": $hwnat_active
+      "hwnat": $hwnat_active,
+      "wan_rx_bytes": $wan_rx,
+      "wan_tx_bytes": $wan_tx
     },
     "wifi": {
       "wifi_2g": {
@@ -232,35 +295,35 @@ EOF
 
     # Plugin Management APIs
     plugin_list)
-        [ -x "$PLUGIN_MGR" ] && "$PLUGIN_MGR" list || echo '{"status":1,"error":"Plugin manager missing"}'
+        [ -f "$PLUGIN_MGR" ] && sh "$PLUGIN_MGR" list || echo '{"status":1,"error":"Plugin manager missing"}'
         ;;
 
     plugin_start)
-        [ -x "$PLUGIN_MGR" ] && "$PLUGIN_MGR" start "$plugin" || echo '{"status":1,"error":"Plugin manager missing"}'
+        [ -f "$PLUGIN_MGR" ] && sh "$PLUGIN_MGR" start "$plugin" || echo '{"status":1,"error":"Plugin manager missing"}'
         ;;
 
     plugin_stop)
-        [ -x "$PLUGIN_MGR" ] && "$PLUGIN_MGR" stop "$plugin" || echo '{"status":1,"error":"Plugin manager missing"}'
+        [ -f "$PLUGIN_MGR" ] && sh "$PLUGIN_MGR" stop "$plugin" || echo '{"status":1,"error":"Plugin manager missing"}'
         ;;
 
     plugin_restart)
-        [ -x "$PLUGIN_MGR" ] && "$PLUGIN_MGR" restart "$plugin" || echo '{"status":1,"error":"Plugin manager missing"}'
+        [ -f "$PLUGIN_MGR" ] && sh "$PLUGIN_MGR" restart "$plugin" || echo '{"status":1,"error":"Plugin manager missing"}'
         ;;
 
     plugin_enable)
-        [ -x "$PLUGIN_MGR" ] && "$PLUGIN_MGR" enable "$plugin" || echo '{"status":1,"error":"Plugin manager missing"}'
+        [ -f "$PLUGIN_MGR" ] && sh "$PLUGIN_MGR" enable "$plugin" || echo '{"status":1,"error":"Plugin manager missing"}'
         ;;
 
     plugin_disable)
-        [ -x "$PLUGIN_MGR" ] && "$PLUGIN_MGR" disable "$plugin" || echo '{"status":1,"error":"Plugin manager missing"}'
+        [ -f "$PLUGIN_MGR" ] && sh "$PLUGIN_MGR" disable "$plugin" || echo '{"status":1,"error":"Plugin manager missing"}'
         ;;
 
     plugin_status)
-        [ -x "$PLUGIN_MGR" ] && "$PLUGIN_MGR" status "$plugin" || echo '{"status":1,"error":"Plugin manager missing"}'
+        [ -f "$PLUGIN_MGR" ] && sh "$PLUGIN_MGR" status "$plugin" || echo '{"status":1,"error":"Plugin manager missing"}'
         ;;
 
     plugin_uninstall)
-        [ -x "$PLUGIN_MGR" ] && "$PLUGIN_MGR" uninstall "$plugin" || echo '{"status":1,"error":"Plugin manager missing"}'
+        [ -f "$PLUGIN_MGR" ] && sh "$PLUGIN_MGR" uninstall "$plugin" || echo '{"status":1,"error":"Plugin manager missing"}'
         ;;
 
     plugin_install_url)
@@ -294,21 +357,36 @@ EOF
         fi
         tmp_tar="/tmp/plugin_upload_$$.tar.gz"
         rm -f "$tmp_tar"
-        printf '%s' "$pkg_b64" | openssl base64 -d > "$tmp_tar" 2>/dev/null || true
+        if [ -x /var/app/bin/busybox ]; then
+            printf '%s' "$pkg_b64" | /var/app/bin/busybox base64 -d > "$tmp_tar" 2>/dev/null || true
+        fi
+        if [ ! -s "$tmp_tar" ] && command -v base64 >/dev/null 2>&1; then
+            printf '%s' "$pkg_b64" | base64 -d > "$tmp_tar" 2>/dev/null || true
+        fi
+        if [ ! -s "$tmp_tar" ] && command -v openssl >/dev/null 2>&1; then
+            printf '%s' "$pkg_b64" | openssl base64 -d -A > "$tmp_tar" 2>/dev/null || \
+            printf '%s' "$pkg_b64" | openssl base64 -d > "$tmp_tar" 2>/dev/null || true
+        fi
         if [ ! -s "$tmp_tar" ]; then
             rm -f "$tmp_tar"
             echo '{"status":1,"error":"插件解包数据解码失败"}'
             exit 1
         fi
-        res=$("$PLUGIN_MGR" install "$tmp_tar")
+        res=$(sh "$PLUGIN_MGR" install "$tmp_tar")
         rm -f "$tmp_tar"
         echo "$res"
         ;;
 
     # Generic Dynamic Plugin RPC Bridge
     plugin_call)
-        if [ -x "$DISPATCHER" ]; then
-            "$DISPATCHER" call "$plugin" "$cmd" "$args"
+        if [ -f "$DISPATCHER" ]; then
+            # Pass raw QUERY when args is absent (single URL-decode inside plugin api.sh prevents double-decoding)
+            if [ -n "$args" ]; then
+                call_args="$args"
+            else
+                call_args="$QUERY"
+            fi
+            sh "$DISPATCHER" call "$plugin" "$cmd" "$call_args"
         else
             echo '{"status":1,"error":"API dispatcher not installed"}'
         fi
@@ -317,7 +395,7 @@ EOF
     # Wi-Fi Configuration APIs
     wifi_get)
         w2_ssid=$(flash get SSID 2>/dev/null | cut -d'=' -f2-)
-        [ -z "$w2_ssid" ] && w2_ssid="MR3000D-2.4G"
+        [ -z "$w2_ssid" ] && w2_ssid="CMCC-2C3G"
         w2_pass=$(flash get WLAN_WPA_PSK 2>/dev/null | cut -d'=' -f2-)
         w2_auto=$(flash get AUTO_CHANNEL 2>/dev/null | cut -d'=' -f2-)
         w2_ch=$(flash get CHANNEL 2>/dev/null | cut -d'=' -f2-)
@@ -339,7 +417,7 @@ EOF
         [ -z "$w2_iso" ] && w2_iso="0"
 
         w5_ssid=$(flash get WLAN1_SSID 2>/dev/null | cut -d'=' -f2-)
-        [ -z "$w5_ssid" ] && w5_ssid="MR3000D-5G"
+        [ -z "$w5_ssid" ] && w5_ssid="CMCC-2C3G-5G"
         w5_pass=$(flash get WLAN1_WPA_PSK 2>/dev/null | cut -d'=' -f2-)
         w5_auto=$(flash get WLAN1_AUTO_CHANNEL 2>/dev/null | cut -d'=' -f2-)
         w5_ch=$(flash get WLAN1_CHANNEL 2>/dev/null | cut -d'=' -f2-)
@@ -620,9 +698,9 @@ EOF
         [ -n "$v_dns1" ] && flash set DHCPS_DNS1 "$v_dns1" >/dev/null 2>&1
         [ -n "$v_dns2" ] && flash set DHCPS_DNS2 "$v_dns2" >/dev/null 2>&1
 
-        # Synchronize Dnsmasq Drop-in Config
+        # Synchronize Dnsmasq Drop-in Config only when stock udhcpd is NOT managing LAN DHCP
         mkdir -p /var/app/conf/dnsmasq.d
-        if [ "$v_dhcp" = "1" ] && [ -n "$v_start" ] && [ -n "$v_end" ]; then
+        if ! pidof udhcpd >/dev/null 2>&1 && [ "$v_dhcp" = "1" ] && [ -n "$v_start" ] && [ -n "$v_end" ] && [ -n "$v_mask" ]; then
             cat > /var/app/conf/dnsmasq.d/lan_dhcp.conf << EOF
 dhcp-range=$v_start,$v_end,$v_mask,${v_lease:-86400}s
 $([ -n "$v_dns1" ] && echo "dhcp-option=6,$v_dns1${v_dns2:+,$v_dns2}")
@@ -771,20 +849,117 @@ EOF
     system_hwnat_toggle)
         hwnat_val=$(get_param "enable")
         if [ "$hwnat_val" = "1" ]; then
-            [ -f /proc/fc/status ] && echo 1 > /proc/fc/status 2>/dev/null || true
+            if [ -w /proc/fc/ctrl/hwnat ]; then
+                echo 1 > /proc/fc/ctrl/hwnat 2>/dev/null || true
+            elif [ -w /proc/fc/status ]; then
+                echo 1 > /proc/fc/status 2>/dev/null || true
+            fi
             msg="HWNAT 硬件直通加速已启用"
         else
-            [ -f /proc/fc/status ] && echo 0 > /proc/fc/status 2>/dev/null || true
+            if [ -w /proc/fc/ctrl/hwnat ]; then
+                echo 0 > /proc/fc/ctrl/hwnat 2>/dev/null || true
+            elif [ -w /proc/fc/status ]; then
+                echo 0 > /proc/fc/status 2>/dev/null || true
+            fi
             msg="HWNAT 硬件直通加速已关闭"
         fi
         echo "{\"status\":0,\"message\":\"$msg\"}"
+        ;;
+
+    # Modern Traffic Scheduling & Steering Controls
+    network_tuning_status)
+        steering_script="/var/app/core_system/network/hwnat_steering.sh"
+        scheduler_script="/var/app/core_system/network/smart_traffic_scheduler.sh"
+        wifi_script="/var/app/core_system/network/wifi_radio_scheduler.sh"
+
+        hwnat_enabled=$(cat /proc/fc/ctrl/hwnat 2>/dev/null | tr -d ' \r\n')
+        [ -z "$hwnat_enabled" ] && hwnat_enabled="-1"
+        hwnat_skip_bit=$(cat /proc/fc/ctrl/skbmark_skipFcFunc 2>/dev/null | tr -d ' \r\n')
+        [ -z "$hwnat_skip_bit" ] && hwnat_skip_bit="-1"
+        dns_trap=$(cat /proc/driver/realtek/dns_trap_enable 2>/dev/null | tr -d ' \r\n')
+        [ -z "$dns_trap" ] && dns_trap="-1"
+        coexist_safe="false"
+        [ "$hwnat_enabled" = "1" ] && coexist_safe="true"
+
+        tun_active="false"
+        ip link show tun0 >/dev/null 2>&1 && tun_active="true"
+        policy_installed="false"
+        ip rule show 2>/dev/null | grep -q "lookup 100" && policy_installed="true"
+
+        wan_chk=$(route -n 2>/dev/null | awk '$1=="0.0.0.0" && $8 !~ /^(br0|eth0)$/ {print $8; exit}')
+        sqm_active="false"
+        [ -n "$wan_chk" ] && tc qdisc show dev "$wan_chk" 2>/dev/null | grep -q "htb" && sqm_active="true"
+        wmm_dscp_active="false"
+        iptables -t mangle -L RIPPLE_QOS -n >/dev/null 2>&1 && wmm_dscp_active="true"
+
+        power_unlocked="false"
+        mount | grep -q "TXPWR_LMT.txt" && power_unlocked="true"
+
+        atf_enabled="false"
+        iwpriv wlan0 get_mib atf 2>/dev/null | grep -q "atf:1" && atf_enabled="true"
+
+        cat << EOF
+{
+  "status": 0,
+  "hwnat": {
+    "enabled": $hwnat_enabled,
+    "skipFcFunc_bit": $hwnat_skip_bit,
+    "carrier_dns_trap": $dns_trap,
+    "coexistence_safe": $coexist_safe
+  },
+  "steering": {
+    "tun_active": $tun_active,
+    "policy_rule_installed": $policy_installed
+  },
+  "scheduler": {
+    "sqm_active": $sqm_active,
+    "wmm_dscp_active": $wmm_dscp_active
+  },
+  "wifi_dsp": {
+    "power_unlocked_23dbm": $power_unlocked,
+    "airtime_fairness": $atf_enabled
+  }
+}
+EOF
+        ;;
+
+    network_tuning_control)
+        module=$(get_param "module")
+        cmd_op=$(get_param "op")
+        [ -z "$cmd_op" ] && cmd_op="restart"
+        case "$cmd_op" in start|stop|restart|status) ;; *) cmd_op="status" ;; esac
+
+        case "$module" in
+            steering)
+                target_sh="/var/app/core_system/network/hwnat_steering.sh"
+                ;;
+            scheduler)
+                target_sh="/var/app/core_system/network/smart_traffic_scheduler.sh"
+                ;;
+            wifi)
+                target_sh="/var/app/core_system/network/wifi_radio_scheduler.sh"
+                ;;
+            *)
+                target_sh=""
+                ;;
+        esac
+
+        if [ -n "$target_sh" ] && [ -x "$target_sh" ]; then
+            res=$("$target_sh" "$cmd_op" 2>&1)
+            rc=$?
+            esc_res=$(json_escape "$res")
+            printf '{"status":%d,"message":"Module %s %s exited (%d)","output":"%s"}\n' "$rc" "$module" "$cmd_op" "$rc" "$esc_res"
+        else
+            echo "{\"status\":1,\"error\":\"Unknown or non-executable module: '$module'\"}"
+        fi
         ;;
 
     system_ping)
         target=$(get_param "target")
         [ -z "$target" ] && target="223.5.5.5"
         target=$(echo "$target" | tr -cd 'a-zA-Z0-9.-')
-        ping_out=$(ping -c 3 -W 2 "$target" 2>&1 | tr '\r' ' ' | sed 's/\\/\\\\/g; s/"/\\"/g' | awk '{printf "%s\\n", $0}' | tr '\n' ' ')
+        raw_ping=$(ping -c 3 -W 2 "$target" 2>&1)
+        ping_out=$(json_escape "$raw_ping")
         echo "{\"status\":0,\"target\":\"$target\",\"output\":\"$ping_out\"}"
         ;;
 
@@ -810,82 +985,7 @@ EOF
         if [ $wol_rc -eq 0 ]; then
             echo "{\"status\":0,\"message\":\"WOL 魔术包已成功广播至 $target_mac (接口: br0)\"}"
         else
-            echo "{\"status\":1,\"error\":\"WOL 发送失败: $wol_out\"}"
-        fi
-        ;;
-
-    # Modern Traffic Scheduling & Steering Controls (综合网络优化)
-    network_tuning_status)
-        steering_script="/var/app/core_system/network/hwnat_steering.sh"
-        scheduler_script="/var/app/core_system/network/smart_traffic_scheduler.sh"
-        wifi_script="/var/app/core_system/network/wifi_radio_scheduler.sh"
-
-        hwnat_skip_bit=$(cat /proc/fc/ctrl/skbmark_skipFcFunc 2>/dev/null || echo "-1")
-        dns_trap=$(cat /proc/driver/realtek/dns_trap_enable 2>/dev/null || echo "1")
-        tun_active="false"
-        ip link show tun0 >/dev/null 2>&1 && tun_active="true"
-        
-        sqm_active="false"
-        tc qdisc show dev eth0 2>/dev/null | grep -q "htb" && sqm_active="true"
-
-        power_unlocked="false"
-        mount | grep -q "TXPWR_LMT.txt" && power_unlocked="true"
-
-        atf_enabled="false"
-        iwpriv wlan0 get_mib atf 2>/dev/null | grep -q "atf:1" && atf_enabled="true"
-
-        cat << EOF
-{
-  "status": 0,
-  "hwnat": {
-    "skipFcFunc_bit": $hwnat_skip_bit,
-    "carrier_dns_trap": $dns_trap,
-    "coexistence_safe": true
-  },
-  "steering": {
-    "tun_active": $tun_active,
-    "policy_rule_installed": true
-  },
-  "scheduler": {
-    "sqm_active": $sqm_active,
-    "wmm_dscp_active": true
-  },
-  "wifi_dsp": {
-    "power_unlocked_23dbm": $power_unlocked,
-    "airtime_fairness": $atf_enabled
-  }
-}
-EOF
-        ;;
-
-    network_tuning_control)
-        module=$(get_param "module")
-        cmd_op=$(get_param "op")
-        [ -z "$cmd_op" ] && cmd_op="restart"
-
-        case "$module" in
-            steering)
-                target_sh="/var/app/core_system/network/hwnat_steering.sh"
-                ;;
-            scheduler)
-                target_sh="/var/app/core_system/network/smart_traffic_scheduler.sh"
-                ;;
-            wifi)
-                target_sh="/var/app/core_system/network/wifi_radio_scheduler.sh"
-                ;;
-            optimizer)
-                target_sh="/var/app/core_system/network/network_optimizer.sh"
-                ;;
-            *)
-                target_sh=""
-                ;;
-        esac
-
-        if [ -n "$target_sh" ] && [ -x "$target_sh" ]; then
-            res=$("$target_sh" "$cmd_op" 2>&1)
-            echo "{\"status\":0,\"message\":\"Module $module $cmd_op executed\",\"output\":\"$(echo "$res" | tr '\n' ' ')\"}"
-        else
-            echo "{\"status\":1,\"error\":\"Unknown or non-executable module: '$module'\"}"
+            echo "{\"status\":1,\"error\":\"发送失败: $wol_out\"}"
         fi
         ;;
 
@@ -895,7 +995,7 @@ EOF
         [ -f "$cron_file" ] || cron_file="/etc/crontabs/root"
         cron_content=""
         if [ -f "$cron_file" ]; then
-            cron_content=$(cat "$cron_file" | sed 's/\\/\\\\/g; s/"/\\"/g' | awk '{printf "%s\\n", $0}' | tr '\n' ' ')
+            cron_content=$(json_escape "$(cat "$cron_file" 2>/dev/null)")
         fi
         echo "{\"status\":0,\"crontab\":\"$cron_content\"}"
         ;;
@@ -910,8 +1010,12 @@ EOF
         ;;
 
     system_logs)
-        log_content=$(logread 2>/dev/null | tail -n 80 || dmesg 2>/dev/null | tail -n 80 || echo "暂无系统运行日志")
-        esc_log=$(printf '%s\n' "$log_content" | sed 's/\\/\\\\/g; s/"/\\"/g' | awk '{printf "%s\\n", $0}' | tr '\n' ' ')
+        sys_log=""
+        [ -x "$(which logread 2>/dev/null)" ] && sys_log=$(logread 2>/dev/null | tail -n 60)
+        [ -z "$sys_log" ] && sys_log=$(dmesg 2>/dev/null | tail -n 40)
+        log_content="=== 系统内核运行日志 ===
+${sys_log:-暂无内核日志}"
+        esc_log=$(json_escape "$log_content")
         echo "{\"status\":0,\"log\":\"$esc_log\"}"
         ;;
 

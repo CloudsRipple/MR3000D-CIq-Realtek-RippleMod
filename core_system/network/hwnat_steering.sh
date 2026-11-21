@@ -5,17 +5,22 @@
 # ==============================================================================
 
 CONF_FILE="/var/app/conf/steering.conf"
-[ -f "$CONF_FILE" ] && . "$CONF_FILE"
+if [ -f "$CONF_FILE" ]; then
+    . "$CONF_FILE"
+elif [ -f "/var/app/core_system/conf/steering.conf" ]; then
+    CONF_FILE="/var/app/core_system/conf/steering.conf"
+    . "$CONF_FILE"
+fi
 
-# Defaults
-STEERING_ENABLED="${STEERING_ENABLED:-1}"
+# Defaults (disabled by default until user explicitly configures TUN steering)
+STEERING_ENABLED="${STEERING_ENABLED:-0}"
 TUN_DEV="${TUN_DEV:-tun0}"
 STEER_ROUTE_TABLE="${STEER_ROUTE_TABLE:-100}"
 BYPASS_MARK_BIT="${BYPASS_MARK_BIT:-30}"
 BYPASS_MARK_HEX="${BYPASS_MARK_HEX:-0x40000000}"
 CHINA_IPSET_NAME="${CHINA_IPSET_NAME:-ripple_china_ip}"
 CHINA_IP_FILE="${CHINA_IP_FILE:-/var/app/conf/china_ip_list.txt}"
-INTRANET_BYPASS_CIDRS="${INTRANET_BYPASS_CIDRS:-10.0.0.0/8 172.16.0.0/12 172.20.0.0/14 172.28.0.0/16 192.168.0.0/16}"
+INTRANET_BYPASS_CIDRS="${INTRANET_BYPASS_CIDRS:-10.0.0.0/8 172.16.0.0/12 192.168.0.0/16}"
 DISABLE_CARRIER_DNS_TRAP="${DISABLE_CARRIER_DNS_TRAP:-1}"
 
 log() {
@@ -121,12 +126,16 @@ start() {
         log "Steering is disabled in $CONF_FILE"
         exit 0
     fi
+    if ! ip link show "$TUN_DEV" >/dev/null 2>&1; then
+        log "Safety guard: TUN device '$TUN_DEV' is not up; refusing to install steering rules to prevent traffic blackhole."
+        exit 1
+    fi
     log "Starting Modern Traffic Steering & HWNAT Coexistence Subsystem..."
     init_hwnat_bypass
     init_ipsets
     setup_policy_routing
     setup_netfilter_rules
-    log "Steering successfully activated with zero HWNAT conflict."
+    log "Steering successfully activated."
 }
 
 stop() {

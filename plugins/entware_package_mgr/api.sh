@@ -2,6 +2,18 @@
 # Entware & Python API Handler
 export PATH="/var/app/bin:/var/app/opt/bin:/var/app/opt/sbin:/opt/bin:/opt/sbin:$PATH"
 
+json_escape() {
+    [ -z "$1" ] && return 0
+    printf '%s' "$1" | awk '{
+        gsub(/\\/, "\\\\");
+        gsub(/"/, "\\\"");
+        gsub(/\t/, "\\t");
+        gsub(/\r/, "");
+        if (NR > 1) { printf "\\\\n"; }
+        printf "%s", $0;
+    }'
+}
+
 cmd="$1"
 shift
 args="$@"
@@ -16,9 +28,15 @@ case "$cmd" in
             has_python="true"
             py_ver=$(python3 --version 2>&1 | cut -d' ' -f2)
         fi
+        running="false"
+        if [ "$installed" = "true" ] || [ "$has_python" = "true" ]; then
+            running="true"
+        fi
         cat << EOF
 {
   "status": 0,
+  "plugin": "entware_package_mgr",
+  "running": $running,
   "entware_installed": $installed,
   "python_installed": $has_python,
   "python_version": "$py_ver"
@@ -29,8 +47,8 @@ EOF
     bootstrap_entware)
         if [ -f /var/app/core_system/runtime/bootstrap_entware.sh ]; then
             out=$(sh /var/app/core_system/runtime/bootstrap_entware.sh 2>&1 || true)
-            clean_out=$(printf '%s' "$out" | tr -d '\r' | sed 's/\\/\\\\/g; s/"/\\"/g' | awk '{printf "%s\\n", $0}' | tr '\n' ' ')
-            echo "{\"status\":0,\"message\":\"Entware 部署操作已完成\",\"log\":\"$clean_out\"}"
+            esc_out=$(json_escape "$out")
+            echo "{\"status\":0,\"message\":\"Entware 部署操作已完成\",\"log\":\"$esc_out\"}"
         else
             echo "{\"status\":1,\"error\":\"bootstrap_entware.sh script not found\"}"
         fi
@@ -39,15 +57,21 @@ EOF
     install_python)
         if [ -f /var/app/core_system/runtime/install_python.sh ]; then
             out=$(sh /var/app/core_system/runtime/install_python.sh 2>&1 || true)
-            clean_out=$(printf '%s' "$out" | tr -d '\r' | sed 's/\\/\\\\/g; s/"/\\"/g' | awk '{printf "%s\\n", $0}' | tr '\n' ' ')
-            echo "{\"status\":0,\"message\":\"Python 3 安装操作已执行\",\"log\":\"$clean_out\"}"
+            esc_out=$(json_escape "$out")
+            echo "{\"status\":0,\"message\":\"Python 3 安装操作已执行\",\"log\":\"$esc_out\"}"
         else
             echo "{\"status\":1,\"error\":\"install_python.sh script not found\"}"
         fi
         ;;
 
     opkg_install)
-        pkg=$(echo "$args" | tr -cd 'a-zA-Z0-9_-')
+        raw_pkg="$args"
+        case "$args" in
+            *=*)
+                raw_pkg=$(printf '%s\n' "$args" | tr '&' '\n' | awk -F= '$1=="pkg" || $1=="package" || $1=="args" {print $2; exit}')
+                ;;
+        esac
+        pkg=$(printf '%s' "$raw_pkg" | tr -cd 'a-zA-Z0-9_.-')
         if [ -z "$pkg" ]; then
             echo "{\"status\":1,\"error\":\"Package name required\"}"
             exit 1
@@ -59,8 +83,8 @@ EOF
         OPKG_BIN="/opt/bin/opkg"
         [ -x /var/app/opt/bin/opkg ] && OPKG_BIN="/var/app/opt/bin/opkg"
         out=$("$OPKG_BIN" install "$pkg" 2>&1 || true)
-        clean_out=$(printf '%s' "$out" | tr -d '\r' | sed 's/\\/\\\\/g; s/"/\\"/g' | awk '{printf "%s\\n", $0}' | tr '\n' ' ')
-        echo "{\"status\":0,\"package\":\"$pkg\",\"output\":\"$clean_out\"}"
+        esc_out=$(json_escape "$out")
+        echo "{\"status\":0,\"package\":\"$pkg\",\"output\":\"$esc_out\"}"
         ;;
 
     list_installed)

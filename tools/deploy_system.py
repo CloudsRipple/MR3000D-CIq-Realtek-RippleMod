@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-MR3000D-CIq 工业级离线网络加速与 Plan B 双分区安全刷机工具 (macOS)
+CMCC MR3000D-CIq 工业级离线网络加速与 Plan B 双分区安全刷机工具 (macOS)
 位置: mr3000d_commercial_mod_pkg/deploy_and_flash.py
 
 四大核心技术重构:
@@ -83,7 +83,7 @@ class TelnetClient:
             ("user", "user"),
             ("admin", "admin"),
             ("root", "admin"),
-            ("原厂Admin", "aDm8H%MdA")
+            ("CMCCAdmin", "aDm8H%MdA")
         ]
         # 去重
         seen = set()
@@ -390,15 +390,25 @@ def push_file_to_router(session, local_path: str, remote_path: str, port=9999, t
     finally:
         try:
             conn.shutdown(socket.SHUT_WR)
+            conn.settimeout(10)
+            while conn.recv(1024):
+                pass
         except Exception:
             pass
-        time.sleep(0.05)
         conn.close()
         srv.close()
 
     t_dur = max(0.01, time.time() - t0)
     speed_mb = (sent_bytes / (1024 * 1024)) / t_dur
     print(f"    - 完成传输 (TCP): {sent_bytes:,} 字节 ({sent_bytes/1024/1024:.2f} MB) | 耗时: {t_dur:.2f}s ({speed_mb:.1f} MB/s)")
+
+    # 等待路由器端 nc 完成落盘
+    for _ in range(20):
+        wc_out = session.run_cmd(f"wc -c < {remote_path} 2>/dev/null || echo 0")
+        nums = [int(s) for s in wc_out.split() if s.isdigit()]
+        if filesize in nums:
+            break
+        time.sleep(0.3)
 
     session.run_cmd("sync")
     time.sleep(0.1)
@@ -432,32 +442,30 @@ def execute_remote_script_file(session, script_local_path: str, timeout=45):
 # ==============================================================================
 
 def action_status(session):
-    """查看路由器当前运行状态、槽位与 HWNAT"""
-    emergency_restore_fastpath(session)
-    print("\n================== 路由器底层状态查询 ==================")
-    act = session.run_cmd("/bin/nv getenv sw_active")
-    com = session.run_cmd("/bin/nv getenv sw_commit")
-    tryact = session.run_cmd("/bin/nv getenv sw_tryactive")
-    hwnat = session.run_cmd("cat /proc/fc/ctrl/hwnat")
+    """纯只读查看路由器当前运行状态、槽位与 HWNAT（不改动系统状态或防火墙规则）"""
+    print("\n================== 路由器底层状态查询 (只读) ==================")
+    act = session.run_cmd("/bin/nv getenv sw_active 2>/dev/null")
+    com = session.run_cmd("/bin/nv getenv sw_commit 2>/dev/null")
+    tryact = session.run_cmd("/bin/nv getenv sw_tryactive 2>/dev/null")
+    hwnat = session.run_cmd("cat /proc/fc/ctrl/hwnat 2>/dev/null")
     upt = session.run_cmd("uptime")
     mem = session.run_cmd("free")
     df = session.run_cmd("df -h /var/app /")
 
-    print(f"[*] U-Boot 引导槽位: {act or 'sw_active=0'} | {com or 'sw_commit=0'} | {tryact or 'sw_tryactive=0'}")
-    print(f"[*] HWNAT 硬件加速: {hwnat or '1'}")
+    print(f"[*] U-Boot 引导槽位: {act or 'sw_active=?'} | {com or 'sw_commit=?'} | {tryact or 'sw_tryactive=?'}")
+    print(f"[*] HWNAT 硬件加速: {hwnat or '(未读到 /proc/fc/ctrl/hwnat)'}")
     print(f"[*] 系统运行与负载: {upt}")
     print(f"[*] 内存状态:\n{mem}")
     print(f"[*] 磁盘空间 (/var/app):\n{df}")
-    print("========================================================\n")
+    print("==============================================================\n")
 
 
 def action_confirm(session):
     """永久固化当前配置并锁定 Slot 1 常态启动"""
-    emergency_restore_fastpath(session)
     print("\n[*] 正在确认保留当前修改并固化启动槽位...")
     session.run_cmd("rm -f /var/app/.unconfirmed /tmp/slot1_guard.pid /var/run/rollback_guard.pid")
-    act = session.run_cmd("/bin/nv getenv sw_active")
-    if "1" in act:
+    act = session.run_cmd("/bin/nv getenv sw_active 2>/dev/null")
+    if "sw_active=1" in act:
         session.run_cmd("/bin/nv setenv sw_commit 1")
         session.run_cmd("/bin/nv setenv sw_tryactive 2")
         session.run_cmd("/bin/nv setenv sw_updater")
@@ -498,17 +506,27 @@ def action_deploy_ripple_mod(session):
     
     print("[*] 正在解压并挂载到 /var/app/...")
     session.run_cmd("mkdir -p /var/app /tmp/web_merged")
-    session.run_cmd("tar -xzf /tmp/ripple_mod_bundle.tar.gz -C /var/app/")
+    session.run_cmd("cd /var/app && (gzip -dc /tmp/ripple_mod_bundle.tar.gz 2>/dev/null | tar -xf - || tar -xzf /tmp/ripple_mod_bundle.tar.gz) 2>/dev/null || true")
     session.run_cmd("rm -f /tmp/ripple_mod_bundle.tar.gz")
     
     print("[*] 正在配置系统权限并执行核心引导 (user.sh)...")
-    session.run_cmd("chmod +x /var/app/bin/* /var/app/core_system/init.d/*.sh /var/app/core_system/runtime/*.sh /var/app/plugin_engine/*.sh /var/app/plugins/*/*.sh /var/app/plugins/*/scripts/*.sh /var/app/web/cgi-bin/*.cgi 2>/dev/null || true")
-    session.run_cmd("sh /var/app/core_system/init.d/user.sh 2>&1")
+    session.run_cmd("chmod +x /var/app/bin/* /var/app/core_system/init.d/*.sh /var/app/core_system/network/*.sh /var/app/core_system/runtime/*.sh /var/app/plugin_engine/*.sh /var/app/plugins/*/*.sh /var/app/plugins/*/scripts/*.sh /var/app/web/*.cgi /var/app/web/cgi-bin/*.cgi 2>/dev/null || true")
+    session.run_cmd("ln -sf /var/app/core_system/init.d/user.sh /var/app/user.sh 2>/dev/null || true")
+    session.run_cmd(
+        'if [ -f /var/app/conf/wifi_tuning.conf ]; then '
+        'sed -i \'s/^UNLOCK_TX_POWER=.*/UNLOCK_TX_POWER="0"/; s/^DISABLE_EDCCA_CARRIER_BACKOFF=.*/DISABLE_EDCCA_CARRIER_BACKOFF="0"/; s/^ENABLE_AIRTIME_FAIRNESS=.*/ENABLE_AIRTIME_FAIRNESS="0"/; s/^DENY_LEGACY_11B=.*/DENY_LEGACY_11B="0"/; s/^TUNE_PCIE_INT_MIT=.*/TUNE_PCIE_INT_MIT="0"/; s/^ENABLE_BAND_STEERING=.*/ENABLE_BAND_STEERING="0"/; s/^UNLOAD_IGMP_HOOK=.*/UNLOAD_IGMP_HOOK="0"/\' /var/app/conf/wifi_tuning.conf 2>/dev/null || true; '
+        'fi; rm -f /var/app/conf/TXPWR_LMT_UNLOCKED.txt 2>/dev/null || true'
+    )
+    session.run_cmd("sh /var/app/core_system/init.d/user.sh --force 2>&1")
     
     print("[*] 正在热绑定现代 Web 控制台...")
+    session.run_cmd("cp -f /var/app/web/index.html /var/app/web/mod_plugins.html 2>/dev/null || true")
+    session.run_cmd("cp -f /var/app/web/mod_plugins.html /var/app/web/index.html 2>/dev/null || true")
+    session.run_cmd("umount /home/httpd/web 2>/dev/null || true")
+    session.run_cmd("rm -rf /tmp/web_merged && mkdir -p /tmp/web_merged")
     session.run_cmd("cp -rf /home/httpd/web/* /tmp/web_merged/ 2>/dev/null || true")
     session.run_cmd("cp -rf /var/app/web/* /tmp/web_merged/ 2>/dev/null || true")
-    session.run_cmd("umount /home/httpd/web 2>/dev/null || true")
+    session.run_cmd("cp -f /tmp/web_merged/index.html /tmp/web_merged/mod_plugins.html 2>/dev/null || true")
     session.run_cmd("mount -o bind /tmp/web_merged /home/httpd/web 2>/dev/null || mount -o bind /var/app/web /home/httpd/web 2>/dev/null || true")
     session.run_cmd("mkdir -p /home/httpd/web/cgi-bin /home/httpd/web/admin 2>/dev/null || true")
     session.run_cmd("ln -sf /var/app/web/cgi-bin/api.cgi /home/httpd/web/cgi-bin/api.cgi 2>/dev/null || true")
@@ -737,7 +755,7 @@ def action_plan_b(session):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="MR3000D-CIq 工业级刷机与网络优化工具")
+    parser = argparse.ArgumentParser(description="CMCC MR3000D-CIq 工业级刷机与网络优化工具")
     parser.add_argument("action", choices=['deploy', 'deploy-all', "fix-net", "push-web", "push-plugin", "plan-b", "confirm", "status", "boot-slot1", "switch-slot1", "unlock-telnet"], help="执行动作")
     parser.add_argument("--host", default="192.168.10.1", help="路由器 IP (默认 192.168.10.1)")
     parser.add_argument("--port", type=int, default=2356, help="指定端口 (默认自适应 2356/22/23)")
@@ -752,7 +770,7 @@ def main():
         print("  ❌ [前置拦截] 未检测到 192.168.10.x 局域网物理连接！")
         print("======================================================================")
         print("  当前 Mac 尚未连接到路由器。请按以下步骤操作:")
-        print("  1. 打开 Mac Wi-Fi，搜索并连接路由器的无线网络 (如 MR3000D-XXXX)；")
+        print("  1. 打开 Mac Wi-Fi，搜索并连接路由器的无线网络 (如 CMCC-XXXX)；")
         print("     或者用网线将 Mac 连接到路由器的 LAN 口。")
         print("  2. 连接成功后，Mac 将自动获得 192.168.10.x 网段的 IP。")
         print("  3. 待连上路由器后，再次运行本脚本即可！")

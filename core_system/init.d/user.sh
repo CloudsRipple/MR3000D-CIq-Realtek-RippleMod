@@ -21,16 +21,32 @@ BIN_DIR="$APP_ROOT/bin"
 PLUGIN_DIR="$APP_ROOT/plugins"
 STATE_DIR="/tmp/ripple_mod"
 
-# 1. Concurrency Guard (Prevent duplicate boot triggers)
+# 1. Atomic Concurrency & One-Shot Boot Guard (Prevent duplicate triggers from rc37 + stock rcS)
+FORCE_REINIT=0
+[ "$1" = "--force" ] && FORCE_REINIT=1
+
+BOOT_DONE_FLAG="/tmp/ripple_mod_boot.done"
+if [ "$FORCE_REINIT" -eq 0 ] && [ -f "$BOOT_DONE_FLAG" ]; then
+    echo "[Init] Ripple-mod already bootstrapped ($BOOT_DONE_FLAG present). Skipping duplicate run."
+    exit 0
+fi
+
 LOCK_FILE="/tmp/ripple_mod_boot.lock"
-if [ -d "$LOCK_FILE" ]; then
+if ! mkdir "$LOCK_FILE" 2>/dev/null; then
     echo "[Init] Bootloader already executing or locked. Exiting."
     exit 0
 fi
-mkdir -p "$LOCK_FILE" 2>/dev/null || exit 0
 trap 'rm -rf "$LOCK_FILE"' EXIT INT TERM
 
 echo "[Init] Bootstrapping Ripple-mod Core Runtime..."
+
+# 1.1 Self-heal /var/app/scripts symlinks to SquashFS failsafe scripts if missing
+mkdir -p "$APP_ROOT/scripts" 2>/dev/null || true
+for _gs in slot1_confirm_guard.sh rollback_guard.sh confirm_keep.sh anti_ota_shield.sh; do
+    if [ -x "/bin/$_gs" ] && [ ! -e "$APP_ROOT/scripts/$_gs" ]; then
+        ln -sf "/bin/$_gs" "$APP_ROOT/scripts/$_gs" 2>/dev/null || true
+    fi
+done
 
 # 2. Initialize Volatile & State Directories on RAMFS (tmpfs)
 mkdir -p "$STATE_DIR" /tmp/run /tmp/lock "$CONF_DIR/crontabs" "$CONF_DIR/dnsmasq.d" "$CONF_DIR/hotplug.d/iface"
@@ -62,14 +78,14 @@ export PS1='\[\033[01;32m\]root@Ripple-mod\[\033[00m\]:\[\033[01;34m\]\w\[\033[0
 EOF
 fi
 
-# 5. OpenWrt Hotplug Hooks Installation
+# 5. OpenWrt Hotplug Hooks Installation (only when /etc/hotplug.d/iface exists and is writable)
 HOTPLUG_DIR="/etc/hotplug.d/iface"
-if [ -d "$HOTPLUG_DIR" ] && [ ! -f "$HOTPLUG_DIR/99-ripple-plugins" ]; then
+if [ -d "$HOTPLUG_DIR" ] && [ -w "$HOTPLUG_DIR" ] && [ ! -f "$HOTPLUG_DIR/99-ripple-plugins" ]; then
     cat > "$HOTPLUG_DIR/99-ripple-plugins" << 'EOF'
 #!/bin/sh
 # Ripple-mod WAN/LAN Hotplug Event Forwarder
-if [ -x /var/app/plugin_engine/plugin_manager.sh ]; then
-    /var/app/plugin_engine/plugin_manager.sh hotplug "$ACTION" "$INTERFACE" "$DEVICE" >/dev/null 2>&1 &
+if [ -f /var/app/plugin_engine/plugin_manager.sh ]; then
+    sh /var/app/plugin_engine/plugin_manager.sh hotplug "$ACTION" "$INTERFACE" "$DEVICE" >/dev/null 2>&1 &
 fi
 EOF
     chmod +x "$HOTPLUG_DIR/99-ripple-plugins" 2>/dev/null || true
@@ -86,9 +102,25 @@ iptables -C FORWARD -j PLUGIN_FORWARD 2>/dev/null || iptables -I FORWARD 1 -j PL
 iptables -t nat -N PLUGIN_NAT 2>/dev/null || iptables -t nat -F PLUGIN_NAT
 iptables -t nat -C POSTROUTING -j PLUGIN_NAT 2>/dev/null || iptables -t nat -I POSTROUTING 1 -j PLUGIN_NAT
 
-# Seamless Port 80 -> 8080 Web Console Access
-iptables -t nat -C PREROUTING -p tcp -d 192.168.10.1 --dport 80 -j REDIRECT --to-ports 8080 2>/dev/null || \
-iptables -t nat -I PREROUTING 1 -p tcp -d 192.168.10.1 --dport 80 -j REDIRECT --to-ports 8080 2>/dev/null || true
+# Port 80 -> 8080 redirect is applied in Step 10 only after verifying Web UI + API daemon are ready
+
+# Wait briefly for stock startup to assign br0 IPv4 address (avoid boot race with rc22 startup&)
+LAN_IP=""
+_br_wait=0
+while [ $_br_wait -lt 15 ]; do
+    LAN_IP=$(ip -4 addr show dev br0 2>/dev/null | awk '/inet /{print $2; exit}' | cut -d/ -f1)
+    [ -z "$LAN_IP" ] && LAN_IP=$(ifconfig br0 2>/dev/null | awk -F'[: ]+' '/inet addr/{print $4; exit}')
+    [ -n "$LAN_IP" ] && break
+    sleep 1
+    _br_wait=$((_br_wait + 1))
+done
+[ -z "$LAN_IP" ] && LAN_IP="192.168.10.1"
+LAN_SUBNET="${LAN_IP%.*}.0/24"
+
+# Universal LAN NAT MASQUERADE & IP Forwarding
+[ -w /proc/sys/net/ipv4/ip_forward ] && echo 1 > /proc/sys/net/ipv4/ip_forward 2>/dev/null || true
+iptables -t nat -C POSTROUTING -s "$LAN_SUBNET" ! -d "$LAN_SUBNET" -j MASQUERADE 2>/dev/null || \
+iptables -t nat -A POSTROUTING -s "$LAN_SUBNET" ! -d "$LAN_SUBNET" -j MASQUERADE 2>/dev/null || true
 
 # Port Forwarding Chain Integration
 iptables -t nat -N PORT_FORWARD 2>/dev/null || true
@@ -97,10 +129,10 @@ if [ -f "$CONF_DIR/port_forward.sh" ]; then
     sh "$CONF_DIR/port_forward.sh" 2>/dev/null || true
 fi
 
-# 6.1 Ensure Console Access (Telnet daemon on port 23 and 2356)
-if ! pidof telnetd >/dev/null 2>&1; then
-    /bin/telnetd -p 23 -l /bin/sh 2>/dev/null || true
-    /bin/telnetd -p 2356 -l /bin/sh 2>/dev/null || true
+# 6.1 Ensure Login-Protected Console Access (LAN-bound Telnet on port 2356, requires /bin/login)
+if ! pidof telnetd >/dev/null 2>&1 && [ -x /bin/telnetd ]; then
+    /bin/telnetd -b "$LAN_IP" -p 2356 -l /bin/login 2>/dev/null || \
+    /bin/telnetd -p 2356 -l /bin/login 2>/dev/null || true
 fi
 
 # 6.2 Wi-Fi Radio DSP, Baseband & Scheduling Subsystem (RF unlock, ATF, EDCCA, latency)
@@ -109,21 +141,9 @@ if [ -x "$APP_ROOT/core_system/network/wifi_radio_scheduler.sh" ]; then
     "$APP_ROOT/core_system/network/wifi_radio_scheduler.sh" start 2>/dev/null || true
 fi
 
-# 6.3 Modern Traffic Steering & HWNAT Coexistence Engine (IPSet + HWNAT Bypass)
-if [ -x "$APP_ROOT/core_system/network/hwnat_steering.sh" ]; then
-    echo "[Init] Launching Modern Traffic Steering (zero HWNAT conflict)..."
-    "$APP_ROOT/core_system/network/hwnat_steering.sh" start 2>/dev/null || true
-fi
-
-# 6.3.1 Comprehensive Network & High-Throughput Buffer Optimization (综合网络优化)
+# 6.3 Comprehensive Network & High-Throughput Buffer Optimization (综合网络优化)
 if [ -x "$APP_ROOT/core_system/network/network_optimizer.sh" ]; then
     "$APP_ROOT/core_system/network/network_optimizer.sh" tune 2>/dev/null || true
-fi
-
-# 6.4 Modern Traffic Scheduler & Bufferbloat Mitigation (SQM + WMM DSCP)
-if [ -x "$APP_ROOT/core_system/network/smart_traffic_scheduler.sh" ]; then
-    echo "[Init] Launching Modern Traffic Scheduler (SQM + WMM)..."
-    "$APP_ROOT/core_system/network/smart_traffic_scheduler.sh" start 2>/dev/null || true
 fi
 
 # 7. Dnsmasq Drop-in Directory Integration
@@ -136,22 +156,26 @@ for conf in /var/dnsmasq.conf /etc/dnsmasq.conf; do
     fi
 done
 
-# 8. Start Dropbear SSH Daemon
+# 8. Start Dropbear SSH Daemon (persistent keys on writable /var/app/conf/ssh)
 if [ -x "$BIN_DIR/dropbear" ]; then
-    mkdir -p /etc/dropbear "$CONF_DIR/ssh"
+    mkdir -p "$CONF_DIR/ssh" 2>/dev/null || true
     KEY_RSA="$CONF_DIR/ssh/dropbear_rsa_host_key"
     KEY_ED25519="$CONF_DIR/ssh/dropbear_ed25519_host_key"
     
     if [ ! -f "$KEY_RSA" ] && [ -x "$BIN_DIR/dropbearkey" ]; then
-        "$BIN_DIR/dropbearkey" -t rsa -f "$KEY_RSA" 2>/dev/null
+        "$BIN_DIR/dropbearkey" -t rsa -f "$KEY_RSA" 2>/dev/null || true
     fi
     if [ ! -f "$KEY_ED25519" ] && [ -x "$BIN_DIR/dropbearkey" ]; then
-        "$BIN_DIR/dropbearkey" -t ed25519 -f "$KEY_ED25519" 2>/dev/null
+        "$BIN_DIR/dropbearkey" -t ed25519 -f "$KEY_ED25519" 2>/dev/null || true
     fi
 
-    if ! pidof dropbear >/dev/null 2>&1; then
-        echo "[Init] Starting Dropbear SSH service on port 22..."
-        "$BIN_DIR/dropbear" -p 22 -R -P "$STATE_DIR/dropbear.pid" 2>/dev/null || true
+    if ! pidof dropbear dropbearmulti >/dev/null 2>&1; then
+        echo "[Init] Starting Dropbear SSH service on ${LAN_IP}:22..."
+        DROPBEAR_KEY_ARGS=""
+        [ -f "$KEY_ED25519" ] && DROPBEAR_KEY_ARGS="$DROPBEAR_KEY_ARGS -r $KEY_ED25519"
+        [ -f "$KEY_RSA" ] && DROPBEAR_KEY_ARGS="$DROPBEAR_KEY_ARGS -r $KEY_RSA"
+        "$BIN_DIR/dropbear" -p "${LAN_IP}:22" $DROPBEAR_KEY_ARGS -R -P "$STATE_DIR/dropbear.pid" 2>/dev/null || \
+        "$BIN_DIR/dropbear" -p 22 $DROPBEAR_KEY_ARGS -R -P "$STATE_DIR/dropbear.pid" 2>/dev/null || true
     fi
 fi
 
@@ -161,7 +185,22 @@ if [ -x "$BIN_DIR/busybox" ] && ! ps 2>/dev/null | grep -v grep | grep -q crond;
     "$BIN_DIR/busybox" crond -c "$CONF_DIR/crontabs" -l 8 2>/dev/null || true
 fi
 
-# 10. Start C-based Fast API Daemon
+# 10. Prepare Web Console & Start C-based Fast API Daemon
+if [ -d "$APP_ROOT/web" ]; then
+    [ ! -s "$APP_ROOT/web/mod_plugins.html" ] && [ -s "$APP_ROOT/web/index.html" ] && \
+        cp -f "$APP_ROOT/web/index.html" "$APP_ROOT/web/mod_plugins.html" 2>/dev/null || true
+    [ ! -s "$APP_ROOT/web/index.html" ] && [ -s "$APP_ROOT/web/mod_plugins.html" ] && \
+        cp -f "$APP_ROOT/web/mod_plugins.html" "$APP_ROOT/web/index.html" 2>/dev/null || true
+
+    mkdir -p /tmp/web_merged /home/httpd/web/cgi-bin /home/httpd/web/admin 2>/dev/null || true
+    cp -rf "$APP_ROOT/web/"* /tmp/web_merged/ 2>/dev/null || true
+    umount /home/httpd/web 2>/dev/null || true
+    mount -o bind /tmp/web_merged /home/httpd/web 2>/dev/null || mount -o bind "$APP_ROOT/web" /home/httpd/web 2>/dev/null || true
+    ln -sf "$APP_ROOT/web/cgi-bin/api.cgi" /home/httpd/web/cgi-bin/api.cgi 2>/dev/null || true
+    ln -sf "$APP_ROOT/web/cgi-bin/api.cgi" /home/httpd/web/api.cgi 2>/dev/null || true
+    ln -sf "$APP_ROOT/web/cgi-bin/api.cgi" /home/httpd/web/admin/api.cgi 2>/dev/null || true
+fi
+
 API_BIN=""
 [ -x "$BIN_DIR/ripple_api_daemon" ] && API_BIN="$BIN_DIR/ripple_api_daemon"
 [ -z "$API_BIN" ] && [ -x "$BIN_DIR/geek_api_daemon" ] && API_BIN="$BIN_DIR/geek_api_daemon"
@@ -169,13 +208,27 @@ API_BIN=""
 if [ -n "$API_BIN" ] && ! pidof ripple_api_daemon geek_api_daemon >/dev/null 2>&1; then
     echo "[Init] Starting Ripple API Daemon on port 8080..."
     "$API_BIN" -d >/dev/null 2>&1 &
+    sleep 1
+fi
+
+# Only redirect port 80 -> 8080 when API daemon is running and mod_plugins.html exists (avoid 404 on boot)
+if pidof ripple_api_daemon geek_api_daemon >/dev/null 2>&1 && [ -s "$APP_ROOT/web/mod_plugins.html" ]; then
+    iptables -t nat -C PREROUTING -p tcp -d "$LAN_IP" --dport 80 -j REDIRECT --to-ports 8080 2>/dev/null || \
+    iptables -t nat -I PREROUTING 1 -p tcp -d "$LAN_IP" --dport 80 -j REDIRECT --to-ports 8080 2>/dev/null || true
+    # Restrict port 8080 strictly to LAN (br0) & loopback (lo) so WAN cannot reach API daemon
+    iptables -N RIPPLE_INPUT 2>/dev/null || iptables -F RIPPLE_INPUT
+    iptables -A RIPPLE_INPUT -i br0 -j RETURN 2>/dev/null || true
+    iptables -A RIPPLE_INPUT -i lo -j RETURN 2>/dev/null || true
+    iptables -A RIPPLE_INPUT -p tcp --dport 8080 -j DROP 2>/dev/null || true
+    iptables -C INPUT -j RIPPLE_INPUT 2>/dev/null || iptables -I INPUT 1 -j RIPPLE_INPUT 2>/dev/null || true
 fi
 
 # 11. Autostart Enabled Plugins via Universal Plugin Engine
-if [ -x "$APP_ROOT/plugin_engine/plugin_manager.sh" ]; then
+if [ -f "$APP_ROOT/plugin_engine/plugin_manager.sh" ]; then
     echo "[Init] Launching enabled plugins..."
-    "$APP_ROOT/plugin_engine/plugin_manager.sh" autostart >/dev/null 2>&1 &
+    sh "$APP_ROOT/plugin_engine/plugin_manager.sh" autostart >/dev/null 2>&1 &
 fi
 
+touch /tmp/ripple_mod_boot.done 2>/dev/null || true
 echo "[Init] Ripple-mod core runtime bootstrap complete."
 exit 0

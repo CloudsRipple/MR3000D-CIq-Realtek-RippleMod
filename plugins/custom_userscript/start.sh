@@ -5,6 +5,9 @@ CONF="$PDIR/config.conf"
 [ -f "$CONF" ] && . "$CONF"
 
 echo "[$(date '+%H:%M:%S')] Executing custom_userscript..." > "$LOG"
+if [ -f "$PDIR/user_run.sh" ]; then
+    sh "$PDIR/user_run.sh" >> "$LOG" 2>&1 || true
+fi
 if [ -n "$AUTORUN_CMD" ]; then
     sh -c "$AUTORUN_CMD" >> "$LOG" 2>&1 || true
 fi

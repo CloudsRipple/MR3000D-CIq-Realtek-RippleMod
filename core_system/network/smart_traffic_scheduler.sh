@@ -5,10 +5,34 @@
 # ==============================================================================
 
 CONF_FILE="/var/app/conf/sqm.conf"
-[ -f "$CONF_FILE" ] && . "$CONF_FILE"
+if [ -f "$CONF_FILE" ]; then
+    . "$CONF_FILE"
+elif [ -f "/var/app/core_system/conf/sqm.conf" ]; then
+    CONF_FILE="/var/app/core_system/conf/sqm.conf"
+    . "$CONF_FILE"
+fi
 
-SQM_ENABLED="${SQM_ENABLED:-1}"
-WAN_DEV="${WAN_DEV:-eth0}"
+# Dynamically detect WAN interface (nas0, eth0.2, or default route)
+detect_wan_interface() {
+    # 1. Default route device
+    dev=$(route -n 2>/dev/null | grep '^[0-9]' | grep -E '^0\.0\.0\.0' | awk '{print $8}' | head -n 1)
+    if [ -n "$dev" ] && [ "$dev" != "eth0" ] && [ "$dev" != "br0" ]; then
+        echo "$dev"
+        return 0
+    fi
+    # 2. CMCC Stock WAN interfaces
+    for iface in nas0 eth0.2; do
+        if ip link show "$iface" >/dev/null 2>&1; then
+            echo "$iface"
+            return 0
+        fi
+    done
+    echo ""
+}
+
+DETECTED_WAN=$(detect_wan_interface)
+WAN_DEV="${WAN_DEV:-$DETECTED_WAN}"
+SQM_ENABLED="${SQM_ENABLED:-0}"
 IFB_DEV="${IFB_DEV:-ifb0}"
 UPLOAD_RATE_KBIT="${UPLOAD_RATE_KBIT:-50000}"
 DOWNLOAD_RATE_KBIT="${DOWNLOAD_RATE_KBIT:-300000}"
@@ -67,6 +91,10 @@ setup_wan_egress_sqm() {
         log "Upload shaping disabled (UPLOAD_RATE_KBIT=0)"
         return 0
     fi
+    if [ -z "$WAN_DEV" ] || [ "$WAN_DEV" = "eth0" ] || [ "$WAN_DEV" = "br0" ]; then
+        log "Safety guard: Egress shaping refused on internal/trunk bus '$WAN_DEV'."
+        return 0
+    fi
     log "Configuring WAN egress HTB + SFQ shaper on $WAN_DEV (${UPLOAD_RATE_KBIT} kbit/s)..."
     
     tc qdisc del dev "$WAN_DEV" root 2>/dev/null || true
@@ -93,6 +121,10 @@ setup_wan_egress_sqm() {
 setup_wan_ingress_sqm() {
     if [ "$DOWNLOAD_RATE_KBIT" -le 0 ]; then
         log "Download shaping disabled (DOWNLOAD_RATE_KBIT=0)"
+        return 0
+    fi
+    if [ -z "$WAN_DEV" ] || [ "$WAN_DEV" = "eth0" ] || [ "$WAN_DEV" = "br0" ]; then
+        log "Safety guard: Ingress redirection refused on internal/trunk bus '$WAN_DEV' to prevent network lockout."
         return 0
     fi
     log "Configuring WAN ingress bufferbloat control via $IFB_DEV (${DOWNLOAD_RATE_KBIT} kbit/s)..."
@@ -127,8 +159,12 @@ start() {
 
 stop() {
     log "Stopping Traffic Scheduler..."
-    tc qdisc del dev "$WAN_DEV" root 2>/dev/null || true
-    tc qdisc del dev "$WAN_DEV" ingress 2>/dev/null || true
+    if [ -n "$WAN_DEV" ] && [ "$WAN_DEV" != "eth0" ] && [ "$WAN_DEV" != "br0" ]; then
+        tc qdisc del dev "$WAN_DEV" root 2>/dev/null || true
+        tc qdisc del dev "$WAN_DEV" ingress 2>/dev/null || true
+    else
+        log "Safety guard: Skipping qdisc deletion on internal/trunk/empty interface '$WAN_DEV'."
+    fi
     tc qdisc del dev "$IFB_DEV" root 2>/dev/null || true
     ip link set dev "$IFB_DEV" down 2>/dev/null || true
 

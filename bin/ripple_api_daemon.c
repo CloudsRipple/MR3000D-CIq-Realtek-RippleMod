@@ -12,11 +12,27 @@
 #include <dirent.h>
 #include <errno.h>
 #include <sys/stat.h>
+#include <sys/time.h>
+#include <signal.h>
 
 #define PORT 8080
 #define BUFFER_SIZE 65536
 #define PRIMARY_WEB_DIR "/var/app/web"
 #define FALLBACK_WEB_DIR "/home/httpd/web"
+
+/* Whitelist validator for shell arguments passed to helper scripts */
+static int is_safe_arg(const char *s) {
+    if (!s) return 0;
+    for (; *s; s++) {
+        unsigned char c = (unsigned char)*s;
+        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+              (c >= '0' && c <= '9') || c == '_' || c == '-' ||
+              c == '.' || c == ':' || c == '/')) {
+            return 0;
+        }
+    }
+    return 1;
+}
 
 /* Utility: Run command and capture output */
 static void run_cmd(const char *cmd, char *out_buf, size_t max_len) {
@@ -134,7 +150,7 @@ static void send_headers(int client_fd, int status_code, const char *status_text
 
 /* Handle Status API */
 static void handle_api_status(int client_fd) {
-    char json[BUFFER_SIZE];
+    static char json[BUFFER_SIZE];
     char mem_info[512] = {0};
     char uptime_raw[128] = {0};
     char loadavg[64] = {0};
@@ -318,12 +334,12 @@ static void handle_api_status(int client_fd) {
         slot_commit[0] ? slot_commit : "0",
         strcmp(trial_active, "YES") == 0 ? "true" : "false",
         atoi(slot_remaining),
-        dual_wan_active ? "WAN2 (Backup)" : "LAN1",
+        dual_wan_active ? "WAN2" : "LAN1",
         dual_wan_active ? "true" : "false",
         if_nas0[0] ? if_nas0 : "192.168.1.102",
         if_nas0[0] ? "Online" : "Disconnected",
-        if_eth02[0] ? if_eth02 : "0.0.0.0",
-        if_eth02_mac[0] ? if_eth02_mac : "00:00:00:00:00:00",
+        if_eth02[0] ? if_eth02 : "10.13.44.88",
+        if_eth02_mac[0] ? if_eth02_mac : "00:E0:4C:88:99:AA",
         if_eth02[0] ? "Online (Bonded)" : (dual_wan_active ? "Connecting" : "Disabled"),
         hwnat_val[0] ? hwnat_val : "0",
         wifi5_ssid[0] ? wifi5_ssid : "MR3000D-5G-Ripple-mod",
@@ -335,21 +351,30 @@ static void handle_api_status(int client_fd) {
         wifi2_ch[0] ? wifi2_ch : "6",
         wifi2_pwr[0] ? wifi2_pwr : "100",
         atoi(wifi2_sta),
-        rf_unlocked ? "true" : "true",
+        rf_unlocked ? "true" : "false",
         spyware_running ? "false" : "true",
-        ssh_running ? "true" : "true",
+        ssh_running ? "true" : "false",
         plugins_json);
 
     send_headers(client_fd, 200, "OK", "application/json", len);
     write(client_fd, json, len);
 }
 
+#ifdef ENABLE_UNSAFE_EXEC
 static char g_exec_output[32768];
 static char g_exec_escaped[32768];
 static char g_exec_json[36000];
+#endif
 
-/* Handle Exec API */
+/* Handle Exec API (disabled by default to prevent unauthenticated RCE; requires -DENABLE_UNSAFE_EXEC) */
 static void handle_api_exec(int client_fd, const char *body) {
+#ifndef ENABLE_UNSAFE_EXEC
+    (void)body;
+    const char *denied = "{\"success\": false, \"error\": \"/api/exec is disabled for security\"}\n";
+    send_headers(client_fd, 403, "Forbidden", "application/json", strlen(denied));
+    write(client_fd, denied, strlen(denied));
+    return;
+#else
     char cmd[1024] = {0};
     get_param(body, "cmd", cmd, sizeof(cmd));
 
@@ -371,29 +396,39 @@ static void handle_api_exec(int client_fd, const char *body) {
         cmd_escaped, g_exec_escaped);
     send_headers(client_fd, 200, "OK", "application/json", len);
     write(client_fd, g_exec_json, len);
+#endif
 }
 
-/* Handle /api.cgi directly by passing query to api.cgi engine */
+/* Handle /api.cgi directly by passing full query/POST body via temp file (no 2KB cap or quote corruption) */
 static void handle_api_cgi(int client_fd, const char *url, const char *body) {
-    char query[2048] = {0};
     const char *qmark = strchr(url, '?');
-    if (qmark && strlen(qmark + 1) > 0) {
-        strncpy(query, qmark + 1, sizeof(query) - 1);
-    } else if (body && body[0]) {
-        strncpy(query, body, sizeof(query) - 1);
-    }
+    const char *qs = (qmark && qmark[1]) ? (qmark + 1) : NULL;
+    const char *bd = (body && body[0]) ? body : NULL;
 
-    /* Sanitize single quotes to prevent command injection */
-    for (size_t i = 0; i < strlen(query); i++) {
-        if (query[i] == '\'') query[i] = ' ';
-    }
+    char tmp_path[] = "/tmp/.api_cgi_req_XXXXXX";
+    int tfd = mkstemp(tmp_path);
+    static char output[32768];
+    output[0] = '\0';
 
-    char cmd[4096];
-    char output[32768] = {0};
-    snprintf(cmd, sizeof(cmd),
-        "sh /var/app/web/api.cgi --raw-json '%s' 2>/dev/null || sh /home/httpd/web/api.cgi --raw-json '%s'",
-        query, query);
-    run_cmd(cmd, output, sizeof(output) - 1);
+    if (tfd >= 0) {
+        if (qs) {
+            write(tfd, qs, strlen(qs));
+            if (bd) write(tfd, "&", 1);
+        }
+        if (bd) {
+            write(tfd, bd, strlen(bd));
+        }
+        close(tfd);
+
+        char cmd[512];
+        snprintf(cmd, sizeof(cmd),
+            "sh /var/app/web/api.cgi --raw-json-file '%s' 2>/dev/null || sh /home/httpd/web/api.cgi --raw-json-file '%s'",
+            tmp_path, tmp_path);
+        run_cmd(cmd, output, sizeof(output) - 1);
+        unlink(tmp_path);
+    } else {
+        strcpy(output, "{\"status\":1,\"error\":\"failed to allocate request buffer\"}\n");
+    }
 
     if (strlen(output) == 0) {
         strcpy(output, "{\"success\":false,\"msg\":\"api.cgi execution failed\"}\n");
@@ -437,6 +472,12 @@ static void handle_api_dual_wan(int client_fd, const char *body) {
     char out[2048] = {0};
 
     char cmd[256];
+    if ((mac[0] && !is_safe_arg(mac)) || (ratio[0] && !is_safe_arg(ratio))) {
+        const char *err = "{\"success\": false, \"error\": \"Invalid parameter\"}\n";
+        send_headers(client_fd, 400, "Bad Request", "application/json", strlen(err));
+        write(client_fd, err, strlen(err));
+        return;
+    }
     if (strcmp(action, "enable") == 0) {
         snprintf(cmd, sizeof(cmd), "/var/app/scripts/dual_wan_engine.sh enable %s %s 2>&1",
             mac[0] ? mac : "auto", ratio[0] ? ratio : "0.5");
@@ -480,6 +521,15 @@ static void handle_api_wifi(int client_fd, const char *body) {
     char cmd[256];
     char out[1024] = {0};
 
+    if ((band[0] && !is_safe_arg(band)) || (power[0] && !is_safe_arg(power)) ||
+        (chan[0] && !is_safe_arg(chan)) || (bw[0] && !is_safe_arg(bw)) ||
+        (mib_param[0] && !is_safe_arg(mib_param)) || (wlan[0] && !is_safe_arg(wlan))) {
+        const char *err = "{\"success\": false, \"error\": \"Invalid Wi-Fi parameter\"}\n";
+        send_headers(client_fd, 400, "Bad Request", "application/json", strlen(err));
+        write(client_fd, err, strlen(err));
+        return;
+    }
+
     if (strcmp(action, "unlock") == 0) {
         run_cmd("/var/app/scripts/wifi_tuner.sh unlock 2>&1", out, sizeof(out));
     } else if (strcmp(action, "mib") == 0) {
@@ -513,7 +563,13 @@ static void handle_api_plugin(int client_fd, const char *body) {
 
     char cmd[256];
     char out[2048] = {0};
-    snprintf(cmd, sizeof(cmd), "/var/app/scripts/plugin_manager.sh %s %s 2>&1",
+    if ((action[0] && !is_safe_arg(action)) || (name[0] && !is_safe_arg(name))) {
+        const char *err = "{\"success\": false, \"error\": \"Invalid plugin parameter\"}\n";
+        send_headers(client_fd, 400, "Bad Request", "application/json", strlen(err));
+        write(client_fd, err, strlen(err));
+        return;
+    }
+    snprintf(cmd, sizeof(cmd), "sh /var/app/plugin_engine/plugin_manager.sh %s %s 2>&1",
         action[0] ? action : "list", name[0] ? name : "");
     run_cmd(cmd, out, sizeof(out));
 
@@ -584,6 +640,14 @@ static void serve_file(int client_fd, const char *rel_path, const char *default_
     /* 2. Strip leading slashes */
     char *p = clean_path;
     while (*p == '/') p++;
+
+    /* Reject path traversal (".."), backslashes, and control characters */
+    if (strstr(p, "..") != NULL || strchr(p, '\\') != NULL) {
+        const char *err = "{\"success\": false, \"error\": \"Forbidden path\"}\n";
+        send_headers(client_fd, 403, "Forbidden", "application/json", strlen(err));
+        write(client_fd, err, strlen(err));
+        return;
+    }
 
     /* 3. If empty, default to mod_plugins.html */
     if (*p == '\0') p = "mod_plugins.html";
@@ -684,6 +748,9 @@ int main(int argc, char **argv) {
     struct sockaddr_in server_addr, client_addr;
     socklen_t client_len = sizeof(client_addr);
 
+    /* Ignore SIGPIPE so abrupt client disconnects never kill the daemon */
+    signal(SIGPIPE, SIG_IGN);
+
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd < 0) {
         perror("socket");
@@ -719,11 +786,17 @@ int main(int argc, char **argv) {
     }
 
     while (1) {
+        client_len = sizeof(client_addr);
         client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &client_len);
         if (client_fd < 0) continue;
         fcntl(client_fd, F_SETFD, FD_CLOEXEC);
+        struct timeval tv;
+        tv.tv_sec = 5;
+        tv.tv_usec = 0;
+        setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+        setsockopt(client_fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 
-        char req_buf[BUFFER_SIZE];
+        static char req_buf[BUFFER_SIZE];
         ssize_t bytes_read = read(client_fd, req_buf, sizeof(req_buf) - 1);
         if (bytes_read <= 0) {
             close(client_fd);
@@ -754,11 +827,11 @@ int main(int argc, char **argv) {
             body = "";
         }
 
-        char method[16] = {0}, url[256] = {0};
-        sscanf(req_buf, "%15s %255s", method, url);
+        char method[16] = {0}, url[1024] = {0};
+        sscanf(req_buf, "%15s %1023s", method, url);
 
         /* Clean URL by removing query strings and hash for routing */
-        char clean_url[256] = {0};
+        char clean_url[1024] = {0};
         strncpy(clean_url, url, sizeof(clean_url) - 1);
         char *q = strpbrk(clean_url, "?#");
         if (q) *q = '\0';
@@ -791,7 +864,7 @@ int main(int argc, char **argv) {
             handle_api_ssh(client_fd, body[0] ? body : url);
         } else if (strncmp(clean_url, "/api/exec", 9) == 0) {
             handle_api_exec(client_fd, body[0] ? body : url);
-        } else if (strcmp(clean_url, "/") == 0 || strcmp(clean_url, "/index.html") == 0 || strcmp(clean_url, "/index.html") == 0 || strcmp(clean_url, "/plugins") == 0 || strcmp(clean_url, "/plugins.html") == 0) {
+        } else if (strcmp(clean_url, "/") == 0 || strcmp(clean_url, "/index.html") == 0 || strcmp(clean_url, "/plugins") == 0 || strcmp(clean_url, "/plugins.html") == 0) {
             serve_file(client_fd, "mod_plugins.html", "text/html");
         } else if (strcmp(clean_url, "/index_classic.html") == 0) {
             serve_file(client_fd, "index.html", "text/html");

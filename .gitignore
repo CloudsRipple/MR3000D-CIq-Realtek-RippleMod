@@ -9,3 +9,14 @@ __pycache__/
 firmware_images/*.tar.gz
 firmware_images/*.uImage
 firmware_images/*.squashfs
+
+# 原厂底包/逆向产物 (体积大且含厂商固件, 不入库)
+legacy_workspace/
+
+# 校园网认证插件与本地隐私隔离区 (主线仓不含特定校园网插件及个人配置)
+plugins/zportal_campus_auth/
+local_private/
+research/
+.worktrees/
+**/pydeps/
+*.db

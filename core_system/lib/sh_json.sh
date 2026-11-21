@@ -4,16 +4,20 @@
 # Requires NO python or jq; runs natively on minimal BusyBox ash.
 # ==============================================================================
 
-# Escape string for JSON inclusion
+# Escape string for JSON inclusion (supports multi-line strings, quotes, and backslashes)
 json_escape() {
-    printf '%s' "$1" | sed -e 's/\\/\\\\/g' \
-                           -e 's/"/\\"/g' \
-                           -e 's/\t/\\t/g' \
-                           -e 's/\r/\\r/g' \
-                           -e 's/\n/\\n/g'
+    [ -z "$1" ] && return 0
+    printf '%s' "$1" | awk '{
+        gsub(/\\/, "\\\\");
+        gsub(/"/, "\\\"");
+        gsub(/\t/, "\\t");
+        gsub(/\r/, "");
+        if (NR > 1) { printf "\\\\n"; }
+        printf "%s", $0;
+    }'
 }
 
-# Extract scalar value from JSON string or file by key
+# Extract scalar value from JSON string or file by key (handles commas inside quoted strings)
 # Usage: json_get "$json_str" "key"
 #    or: json_get "/path/to/file.json" "key"
 json_get() {
@@ -27,15 +31,36 @@ json_get() {
         raw="$src"
     fi
 
-    line=$(printf '%s\n' "$raw" | tr ',' '\n' | grep "\"$key\"[[:space:]]*:" | head -n 1)
-    [ -z "$line" ] && return 0
-
-    val=$(printf '%s' "$line" | sed \
-        -e "s/.*\"$key\"[[:space:]]*:[[:space:]]*//" \
-        -e 's/^[[:space:]]*"//' \
-        -e 's/"[[:space:]}]*$//' \
-        -e 's/[[:space:]}]*$//')
-    printf '%s' "$val"
+    printf '%s' "$raw" | awk -v k="$key" '
+    { buf = buf $0 "\n" }
+    END {
+        pat = "\"" k "\"[ \t\r\n]*:[ \t\r\n]*"
+        if (!match(buf, pat)) exit
+        rest = substr(buf, RSTART + RLENGTH)
+        c = substr(rest, 1, 1)
+        if (c == "\"") {
+            out = ""
+            i = 2
+            n = length(rest)
+            while (i <= n) {
+                ch = substr(rest, i, 1)
+                if (ch == "\\") {
+                    i++
+                    if (i <= n) out = out substr(rest, i, 1)
+                } else if (ch == "\"") {
+                    break
+                } else {
+                    out = out ch
+                }
+                i++
+            }
+            printf "%s", out
+        } else {
+            if (match(rest, /^[^,}\]\r\n \t]+/)) {
+                printf "%s", substr(rest, RSTART, RLENGTH)
+            }
+        }
+    }'
 }
 
 # Output standard JSON API Response

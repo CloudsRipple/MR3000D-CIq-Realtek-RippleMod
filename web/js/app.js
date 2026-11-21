@@ -30,6 +30,7 @@ function getVendorName(mac) {
   return OUI_VENDORS[prefix] || '标准终端';
 }
 
+
 // Toast Notification Engine
 function showToast(message, type = 'info') {
   const container = document.getElementById('toast-container');
@@ -143,7 +144,7 @@ function switchTab(targetId) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-function openPluginGui(id) {
+function openPluginGui(id, hasGui = false) {
   if (id === 'hosts_adblock_dns') {
     switchTab('tab-adblock');
     return;
@@ -158,13 +159,13 @@ function openPluginGui(id) {
   const usPanel = document.getElementById('panel-plugin-userscript');
   if (!wrapper) return;
 
-  wrapper.style.display = 'block';
-  if (usPanel) usPanel.style.display = 'none';
-
   if (id === 'custom_userscript') {
+    wrapper.style.display = 'block';
     if (usPanel) usPanel.style.display = 'block';
     loadUserScript();
     usPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } else if (hasGui) {
+    window.open(`/plugins/${encodeURIComponent(id)}/ui.html`, '_blank');
   } else {
     showToast(`插件 ${id} 暂无独立 GUI 页面`, 'info');
   }
@@ -276,6 +277,7 @@ async function refreshSysInfo() {
       const elLanClients = document.getElementById('sys-lan-clients');
       if (elLanClients && s.network) elLanClients.textContent = `${s.network.lan_clients || 1} 台 (点击查看)`;
 
+
       // Services status
       if (s.services) {
         const sSsh = document.getElementById('status-ssh');
@@ -335,7 +337,7 @@ async function refreshPlugins() {
               <div style="font-size: 13px; color: var(--text-muted); margin-top: 6px; line-height: 1.4;">${p.description || ''}</div>
             </div>
             <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
-              <button class="btn btn-primary btn-sm" onclick="openPluginGui('${p.id}')">
+              <button class="btn btn-primary btn-sm" onclick="openPluginGui('${p.id}', ${!!p.has_gui})">
                 打开面板
               </button>
               <button class="btn btn-secondary btn-sm" onclick="togglePlugin('${p.id}', '${p.running ? 'restart' : 'start'}')">
@@ -345,10 +347,18 @@ async function refreshPlugins() {
               <button class="btn btn-secondary btn-sm" onclick="togglePluginAutostart('${p.id}', ${!p.enabled})">
                 ${p.enabled ? '已自启' : '未自启'}
               </button>
+              <button class="btn btn-secondary btn-sm" style="color: var(--danger);" onclick="uninstallPlugin('${p.id}')">
+                卸载
+              </button>
             </div>
           </div>
         </div>
       `).join('');
+    } else {
+      listEl.innerHTML = `<div style="color: var(--danger); padding: 14px; background: rgba(239, 68, 68, 0.08); border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.2);">
+        插件引擎未就绪或响应异常: ${res.error || res.message || '未知错误'}
+        <button class="btn btn-secondary btn-sm" style="margin-left: 10px;" onclick="refreshPlugins()">重试</button>
+      </div>`;
     }
   } catch (err) {
     listEl.innerHTML = `<div style="color: var(--danger); padding: 10px;">插件加载失败: ${err.message}</div>`;
@@ -437,6 +447,18 @@ async function togglePluginAutostart(id, enable) {
     const act = enable ? 'plugin_enable' : 'plugin_disable';
     const res = await apiCall(API_BASE, { action: act, plugin: id });
     showToast(res.message || '自启设置已更新', 'success');
+    refreshPlugins();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+async function uninstallPlugin(id) {
+  if (!confirm(`确定要卸载插件 "${id}" 吗？卸载后该插件目录将被移除。`)) return;
+  try {
+    const res = await apiCall(API_BASE, { action: 'plugin_uninstall', plugin: id });
+    showToast(res.message || `插件 ${id} 已卸载`, res.status === 0 ? 'success' : 'error');
+    closePluginPanel();
     refreshPlugins();
   } catch (err) {
     showToast(err.message, 'error');
@@ -543,7 +565,9 @@ async function saveWifiSettings(event, band) {
       }
     }
 
-    const res = await apiCall(API_BASE, params, 15000);
+    // Send Wi-Fi config via POST body to avoid 255-byte GET URL truncation and hide PSK from URLs
+    const body = new URLSearchParams(params).toString();
+    const res = await apiCall(API_BASE, {}, 15000, body);
     showToast(res.message || `${band.toUpperCase()} Wi-Fi 配置已生效！`, 'success');
     refreshSysInfo();
   });

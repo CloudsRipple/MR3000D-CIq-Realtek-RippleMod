@@ -3,10 +3,19 @@
 # Ripple-mod - Universal Plugin Engine & Lifecycle Manager
 # ==============================================================================
 
-APP_ROOT="/var/app"
-PLUGIN_DIR="$APP_ROOT/plugins"
-STATE_DIR="/tmp/ripple_mod/plugins"
-LIB_DIR="$APP_ROOT/core_system/lib"
+SCRIPT_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"
+APP_ROOT="${APP_ROOT:-/var/app}"
+PLUGIN_DIR="${PLUGIN_DIR:-$APP_ROOT/plugins}"
+STATE_DIR="${STATE_DIR:-/tmp/ripple_mod/plugins}"
+LIB_DIR="${LIB_DIR:-$APP_ROOT/core_system/lib}"
+
+# Intelligent directory fallback
+if [ ! -d "$PLUGIN_DIR" ] && [ -d "$SCRIPT_DIR/../plugins" ]; then
+    PLUGIN_DIR="$SCRIPT_DIR/../plugins"
+fi
+if [ ! -d "$LIB_DIR" ] && [ -d "$SCRIPT_DIR/../core_system/lib" ]; then
+    LIB_DIR="$SCRIPT_DIR/../core_system/lib"
+fi
 
 [ -f "$LIB_DIR/sys_env.sh" ] && . "$LIB_DIR/sys_env.sh"
 [ -f "$LIB_DIR/sh_json.sh" ] && . "$LIB_DIR/sh_json.sh"
@@ -42,6 +51,14 @@ validate_id() {
     fi
 }
 
+is_plugin_enabled() {
+    _pdir="$1"
+    [ -f "$_pdir/.disabled" ] && return 1
+    [ -f "$_pdir/.enabled" ] && return 0
+    grep -qi '"autostart"[ \t]*:[ \t]*true' "$_pdir/manifest.json" 2>/dev/null && return 0
+    return 1
+}
+
 cmd_list() {
     printf '{\n  "status": 0,\n  "plugins": [\n'
     first=1
@@ -51,29 +68,40 @@ cmd_list() {
             [ $first -eq 0 ] && printf ',\n'
             first=0
 
-            # Determine running status
+            # Determine running status strictly from JSON running field (fallback to RUNNING token)
             is_running="false"
-            if [ -x "$pdir/status.sh" ]; then
-                stat_out=$("$pdir/status.sh" 2>/dev/null || echo "")
-                if (echo "$stat_out" | grep -qi '"running"[[:space:]]*:[[:space:]]*true' || \
-                    echo "$stat_out" | grep -qi 'RUNNING' || \
-                    echo "$stat_out" | grep -qi 'ONLINE') && \
-                   ! echo "$stat_out" | grep -qi '"running"[[:space:]]*:[[:space:]]*false'; then
+            if [ -f "$pdir/status.sh" ]; then
+                stat_out=$(sh "$pdir/status.sh" 2>/dev/null || echo "")
+                if echo "$stat_out" | grep -qi '"running"[[:space:]]*:[[:space:]]*true'; then
+                    is_running="true"
+                elif ! echo "$stat_out" | grep -qi '"running"[[:space:]]*:' && \
+                     echo "$stat_out" | grep -q 'RUNNING'; then
                     is_running="true"
                 fi
             fi
 
-            # Determine enabled status
+            # Determine enabled status (.disabled explicitly overrides manifest autostart)
             is_enabled="false"
-            if [ -f "$pdir/.enabled" ] || grep -qi '"autostart"[ \t]*:[ \t]*true' "$pdir/manifest.json" 2>/dev/null; then
+            if is_plugin_enabled "$pdir"; then
                 is_enabled="true"
             fi
 
-            # Merge running and enabled into manifest
-            p_name=$(json_get "$pdir/manifest.json" "name")
-            p_ver=$(json_get "$pdir/manifest.json" "version")
-            p_desc=$(json_get "$pdir/manifest.json" "description")
-            p_icon=$(json_get "$pdir/manifest.json" "icon")
+            # Detect built-in or packaged plugin GUI
+            has_gui="false"
+            case "$pid" in
+                hosts_adblock_dns|custom_userscript|entware_package_mgr)
+                    has_gui="true"
+                    ;;
+                *)
+                    [ -f "$pdir/web/ui.html" ] || [ -f "$APP_ROOT/web/plugins/$pid/ui.html" ] && has_gui="true"
+                    ;;
+            esac
+
+            # Merge running and enabled into manifest (properly JSON-escaped)
+            p_name=$(json_escape "$(json_get "$pdir/manifest.json" "name")")
+            p_ver=$(json_escape "$(json_get "$pdir/manifest.json" "version")")
+            p_desc=$(json_escape "$(json_get "$pdir/manifest.json" "description")")
+            p_icon=$(json_escape "$(json_get "$pdir/manifest.json" "icon")")
 
             cat << EOF
     {
@@ -83,7 +111,8 @@ cmd_list() {
       "description": "$p_desc",
       "icon": "$p_icon",
       "running": $is_running,
-      "enabled": $is_enabled
+      "enabled": $is_enabled,
+      "has_gui": $has_gui
     }
 EOF
         fi
@@ -128,23 +157,45 @@ cmd_install() {
 
     target_dir="$PLUGIN_DIR/$pid"
     
-    # Stop existing instance if running
+    # Preserve user-edited configs/scripts across upgrade installations
+    preserve_dir="/tmp/plugin_preserve_$$"
     if [ -d "$target_dir" ]; then
         [ -x "$target_dir/stop.sh" ] && "$target_dir/stop.sh" >/dev/null 2>&1 || true
+        mkdir -p "$preserve_dir"
+        for pf in config.conf user_run.sh .disabled; do
+            [ -f "$target_dir/$pf" ] && cp -f "$target_dir/$pf" "$preserve_dir/$pf" 2>/dev/null || true
+        done
         rm -rf "$target_dir"
     fi
 
     mkdir -p "$target_dir"
     cp -a "$content_dir"/* "$target_dir/"
     rm -rf "$tmp_ext"
+    if [ -d "$preserve_dir" ]; then
+        for pf in config.conf user_run.sh; do
+            [ -f "$preserve_dir/$pf" ] && cp -f "$preserve_dir/$pf" "$target_dir/$pf" 2>/dev/null || true
+        done
+        rm -rf "$preserve_dir"
+    fi
     chmod +x "$target_dir"/*.sh "$target_dir"/scripts/*.sh 2>/dev/null || true
+
+    # Publish packaged plugin Web UI if provided
+    if [ -d "$target_dir/web" ]; then
+        mkdir -p "$APP_ROOT/web/plugins/$pid" 2>/dev/null || true
+        cp -rf "$target_dir/web/"* "$APP_ROOT/web/plugins/$pid/" 2>/dev/null || true
+        if [ -d /tmp/web_merged ]; then
+            mkdir -p "/tmp/web_merged/plugins/$pid" 2>/dev/null || true
+            cp -rf "$target_dir/web/"* "/tmp/web_merged/plugins/$pid/" 2>/dev/null || true
+        fi
+    fi
 
     # Run installation hook
     if [ -x "$target_dir/install.sh" ]; then
         "$target_dir/install.sh" >/dev/null 2>&1 || true
     fi
 
-    # Mark enabled by default
+    # Mark enabled by default (clear any stale .disabled marker)
+    rm -f "$target_dir/.disabled"
     touch "$target_dir/.enabled"
 
     json_response 0 "Plugin '$pid' installed successfully" "{\"plugin_id\":\"$pid\"}"
@@ -155,8 +206,8 @@ cmd_start() {
     target="$PLUGIN_DIR/$1"
     [ ! -d "$target" ] && { json_error 1 "Plugin '$1' is not installed"; exit 1; }
     
-    if [ -x "$target/start.sh" ]; then
-        out=$("$target/start.sh" 2>&1)
+    if [ -f "$target/start.sh" ]; then
+        out=$(sh "$target/start.sh" 2>&1)
         ec=$?
         json_response "$ec" "Plugin '$1' started" "{\"output\":\"$(json_escape "$out")\"}"
     else
@@ -169,8 +220,8 @@ cmd_stop() {
     target="$PLUGIN_DIR/$1"
     [ ! -d "$target" ] && { json_error 1 "Plugin '$1' is not installed"; exit 1; }
     
-    if [ -x "$target/stop.sh" ]; then
-        out=$("$target/stop.sh" 2>&1)
+    if [ -f "$target/stop.sh" ]; then
+        out=$(sh "$target/stop.sh" 2>&1)
         ec=$?
         json_response "$ec" "Plugin '$1' stopped" "{\"output\":\"$(json_escape "$out")\"}"
     else
@@ -183,12 +234,12 @@ cmd_restart() {
     target="$PLUGIN_DIR/$1"
     [ ! -d "$target" ] && { json_error 1 "Plugin '$1' is not installed"; exit 1; }
     
-    if [ -x "$target/stop.sh" ]; then
-        "$target/stop.sh" >/dev/null 2>&1 || true
+    if [ -f "$target/stop.sh" ]; then
+        sh "$target/stop.sh" >/dev/null 2>&1 || true
     fi
     sleep 1
-    if [ -x "$target/start.sh" ]; then
-        out=$("$target/start.sh" 2>&1)
+    if [ -f "$target/start.sh" ]; then
+        out=$(sh "$target/start.sh" 2>&1)
         ec=$?
         json_response "$ec" "Plugin '$1' restarted" "{\"output\":\"$(json_escape "$out")\"}"
     else
@@ -201,8 +252,8 @@ cmd_status() {
     target="$PLUGIN_DIR/$1"
     [ ! -d "$target" ] && { json_error 1 "Plugin '$1' is not installed"; exit 1; }
     
-    if [ -x "$target/status.sh" ]; then
-        "$target/status.sh"
+    if [ -f "$target/status.sh" ]; then
+        sh "$target/status.sh"
     else
         json_response 0 "Plugin '$1' installed" "{\"running\":false}"
     fi
@@ -212,6 +263,7 @@ cmd_enable() {
     validate_id "$1"
     target="$PLUGIN_DIR/$1"
     [ ! -d "$target" ] && { json_error 1 "Plugin '$1' is not installed"; exit 1; }
+    rm -f "$target/.disabled"
     touch "$target/.enabled"
     json_response 0 "Plugin '$1' enabled for autostart"
 }
@@ -221,6 +273,7 @@ cmd_disable() {
     target="$PLUGIN_DIR/$1"
     [ ! -d "$target" ] && { json_error 1 "Plugin '$1' is not installed"; exit 1; }
     rm -f "$target/.enabled"
+    touch "$target/.disabled"
     json_response 0 "Plugin '$1' disabled from autostart"
 }
 
@@ -229,19 +282,19 @@ cmd_uninstall() {
     target="$PLUGIN_DIR/$1"
     [ ! -d "$target" ] && { json_error 1 "Plugin '$1' is not installed"; exit 1; }
     
-    [ -x "$target/stop.sh" ] && "$target/stop.sh" >/dev/null 2>&1 || true
-    [ -x "$target/uninstall.sh" ] && "$target/uninstall.sh" >/dev/null 2>&1 || true
+    [ -f "$target/stop.sh" ] && sh "$target/stop.sh" >/dev/null 2>&1 || true
+    [ -f "$target/uninstall.sh" ] && sh "$target/uninstall.sh" >/dev/null 2>&1 || true
     rm -rf "$target"
     json_response 0 "Plugin '$1' uninstalled successfully"
 }
 
 cmd_autostart() {
     for pdir in "$PLUGIN_DIR"/*; do
-        if [ -d "$pdir" ] && [ -x "$pdir/start.sh" ]; then
-            if [ -f "$pdir/.enabled" ] || grep -qi '"autostart"[ \t]*:[ \t]*true' "$pdir/manifest.json" 2>/dev/null; then
+        if [ -d "$pdir" ] && [ -f "$pdir/start.sh" ]; then
+            if is_plugin_enabled "$pdir"; then
                 pid=$(basename "$pdir")
                 echo "[Autostart] Starting plugin '$pid'..."
-                "$pdir/start.sh" >/dev/null 2>&1 &
+                sh "$pdir/start.sh" >/dev/null 2>&1 &
             fi
         fi
     done
